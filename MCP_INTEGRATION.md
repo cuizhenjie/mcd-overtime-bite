@@ -150,4 +150,71 @@ provider = MockProvider()
 provider = McdDataProvider(McdMcpClient.from_env())
 ```
 
-全程 34 个单元测试覆盖触发闸门、预算硬约束、忌口过滤、渠道决策、画像学习与下单边界，可在无 Token、无网络环境下全部通过。
+---
+
+## 六、接入层的三个工程约束
+
+这些是真实调试过程中踩出来的，不是设计时就想到的。
+
+### 1. `mcp` 必须锁在 1.x
+
+mcp 2.x 是破坏性升级，对本项目有致命影响：
+
+| 变化 | 影响 |
+|---|---|
+| `FastMCP` → `MCPServer` | 服务端侧改名 |
+| `streamablehttp_client` → `streamable_http_client` | 客户端 API 改名 |
+| **`StreamableHTTPTransport` 不再接受 `headers`** | **麦当劳强制要求 `Authorization`，缺头直接 401** |
+
+所以 `requirements.txt` 锁定 `mcp>=1.0,<2.0`，与麦当劳官方文档保持一致。
+
+### 2. session 生命周期必须显式持有
+
+`ClientSession` 由 anyio task group 支撑，其 `__aexit__` 会 cancel 整个 task group。
+最初的连接实现用完 `async with` 就返回，**导致 session 在第一次调用前就已失效**——
+而纯 mock 测试完全无法发现这个问题。
+
+现在的做法是让连接协程用 `AsyncExitStack` **常驻持有**连接直到 `close()`，
+每次调用通过 `run_coroutine_threadsafe` 派发回同一事件循环。
+`tests/test_mcp_integration.py` 会连续调用多次守住这条线。
+
+### 3. 代理环境下的连接方式
+
+开发机普遍设置 `ALL_PROXY=socks5://...`，httpx 会尝试走 SOCKS 代理；
+未安装 `socksio` 时连接直接失败。两种解法：
+
+```bash
+pip install "httpx[socks]"     # 希望 MCP 走代理
+```
+
+或在代码中传入 `trust_env=False` 的工厂直连（本地测试即如此）：
+
+```python
+import httpx
+def factory(headers=None, timeout=None, **kw):
+    return httpx.AsyncClient(headers=headers or {}, timeout=timeout, trust_env=False)
+
+client = McdMcpClient.from_env()
+client.httpx_client_factory = factory
+```
+
+### 4. 工具级错误必须显式拦截
+
+MCP 工具执行失败时，协议层仍返回 HTTP 200，只是把 `CallToolResult.isError`
+置为 `true`。若不判断，错误文本会被当成正常业务数据继续向下流动——
+非常隐蔽。`_unwrap()` 对此做了显式拦截并抛出 `McpError`。
+
+---
+
+## 七、测试
+
+| 测试文件 | 数量 | 依赖 |
+|---|---:|---|
+| `test_trigger.py` | 9 | 无（纯标准库） |
+| `test_optimizer.py` | 10 | 无 |
+| `test_pipeline.py` | 15 | 无 |
+| `test_mcp_integration.py` | 9 | mcp + uvicorn |
+
+集成测试会**真实启动一个 streamable-http MCP 服务器**，用麦当劳官方的连字符
+工具名注册替身工具，并在服务端侧用 ASGI 中间件实测 `Authorization` 头确实送达，
+而非"调用没报错就算过"。

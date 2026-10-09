@@ -170,9 +170,13 @@ python examples/run_demo.py
 3. 安装依赖并配置：
 
 ```bash
-pip install mcp
+pip install -r requirements.txt      # 注意：锁 mcp<2.0，原因见下文
 export MCD_MCP_TOKEN=<你的token>
 ```
+
+> **为什么锁 `mcp<2.0`**：mcp 2.x 中 `StreamableHTTPTransport` 不再接受 `headers`
+> 参数，而麦当劳 MCP 强制要求 `Authorization: Bearer <token>`，缺头直接 401。
+> 麦当劳官方文档与 `mcd-mcp-server` 仓库也都是按 1.x API 写的。
 
 4. 使用：
 
@@ -191,12 +195,30 @@ print(decision.summary)
 ### 运行测试
 
 ```bash
-python tests/test_trigger.py     # 9 passed  触发闸门与自动化边界
-python tests/test_optimizer.py   # 10 passed 预算硬约束与寻优
-python tests/test_pipeline.py    # 15 passed 端到端与下单边界
+python tests/test_trigger.py            # 9 passed   触发闸门与自动化边界
+python tests/test_optimizer.py          # 10 passed  预算硬约束与寻优
+python tests/test_pipeline.py           # 15 passed  端到端与下单边界
+python tests/test_mcp_integration.py    # 9 passed   真实 MCP 协议集成测试
 ```
 
-**34 passed**，全程无需 Token、无需网络。
+**43 passed**。前三组零依赖、无需 Token；集成测试会**真的起一个 MCP 服务器**
+（streamable-http），走完整 initialize → call 流程，并在服务端侧实测
+`Authorization` 头是否送达。
+
+<details>
+<summary>为什么要有集成测试：它守住一个已经踩过的坑</summary>
+
+MCP 的 `ClientSession` 由 anyio task group 支撑，**一旦它所在的 `async with` 块退出，
+`__aexit__` 就会 cancel 掉整个 task group，session 随即失效**。
+
+最初的实现里连接协程用完 `async with` 就返回，结果是 **session 在第一次调用之前
+就已经死了**——而这个 bug 在纯 mock 测试里完全看不出来（`MockProvider` 根本不碰
+MCP）。
+
+现在的连接协程用 `AsyncExitStack` 常驻持有连接，直到 `close()` 才释放；
+集成测试通过连续多次调用守住这条线，且做过变异验证：把修复回退成提前 `return`，
+测试立刻失败。
+</details>
 
 ---
 

@@ -1,5 +1,19 @@
-# 本项目只在连接真实 MCP 时需要此依赖。
-# 核心逻辑、演示与全部测试均为零依赖（仅 Python 标准库）。
-
 # 麦当劳 MCP Server 客户端
-mcp>=1.0.0
+#
+# ⚠️ 版本必须锁在 1.x
+#
+# mcp 2.x 做了破坏性改动，会导致本项目无法运行：
+#   1. FastMCP 更名为 MCPServer（服务端侧改名）
+#   2. streamablehttp_client 更名为 streamable_http_client
+#   3. StreamableHTTPTransport 不再接受 headers 参数
+#
+# 第 3 条是致命的：麦当劳 MCP 强制要求 `Authorization: Bearer <token>`，
+# 没有这个头服务端直接返回 401。而麦当劳官方文档与 mcd-mcp-server 仓库
+# 也都是按 1.x API 写的。
+mcp>=1.0,<2.0
+
+# 部分开发机设置了 ALL_PROXY=socks5://...，httpx 会尝试走 SOCKS 代理。
+# 若未安装 socksio，MCP 连接会报
+# "Using SOCKS proxy, but the 'socksio' package is not installed"。
+# 如果你的网络环境需要 SOCKS 代理，取消下面这行注释：
+# httpx[socks]
