@@ -47,24 +47,33 @@ _SAMPLE_COUPONS = [
 ]
 
 _SAMPLE_HISTORY: list[dict[str, Any]] = [
-    {"orderNo": "1001", "items": [
-        {"name": "吉士汉堡", "category": "burger"},
-        {"name": "中薯条", "category": "side"},
-        {"name": "中可乐", "category": "drink"},
-    ]},
-    {"orderNo": "1002", "items": [
-        {"name": "巨无霸", "category": "burger"},
-        {"name": "中薯条", "category": "side"},
-        {"name": "中无糖可乐", "category": "drink"},
-    ]},
-    {"orderNo": "1003", "items": [
-        {"name": "吉士汉堡", "category": "burger"},
-        {"name": "中可乐", "category": "drink"},
-    ]},
-    {"orderNo": "1004", "items": [
-        {"name": "麦辣鸡腿堡套餐", "category": "combo"},
-        {"name": "蛋挞（2只）", "category": "dessert"},
-    ]},
+    # 结构取自真实 mcp.mcd.cn 的 order-list 响应（已脱敏）：
+    # 商品字段是 orderProductList / productName，套餐内层是 comboItemList / name。
+    # 用真实结构而非自造结构——之前自造的 items/name 根本匹配不上真实响应，
+    # 导致离线测试全绿、画像学习在真实数据上却恒为空。
+    {"orderId": "1001", "createTime": "2026-06-05 20:39:19",
+     "storeName": "麦当劳北京西马场路得来速餐厅",
+     "orderProductList": [
+         {"productCode": "9900011798", "productName": "爆脆星星堡三件套", "quantity": 1,
+          "comboItemList": [
+              {"productCode": "521289", "name": "爆脆星星堡", "quantity": 1},
+              {"productCode": "4810", "name": "中薯条", "quantity": 1},
+              {"productCode": "515281", "name": "阳光柠檬红茶中杯", "quantity": 1},
+          ]}]},
+    {"orderId": "1002", "createTime": "2026-06-04 19:42:35",
+     "storeName": "麦当劳北京西马场路得来速餐厅",
+     "orderProductList": [
+         {"productCode": "X1", "productName": "麦辣鸡腿汉堡", "quantity": 1}]},
+    {"orderId": "1003", "createTime": "2026-06-04 19:33:14",
+     "storeName": "麦当劳北京西马场路得来速餐厅",
+     "orderProductList": [
+         {"productCode": "521289", "productName": "爆脆星星堡", "quantity": 1}]},
+    {"orderId": "1004", "createTime": "2026-06-04 19:31:37",
+     "storeName": "麦当劳北京西马场路得来速餐厅",
+     "orderProductList": [
+         {"productCode": "Y2", "productName": "麦麦脆汁鸡-带骨里脊", "quantity": 1},
+          {"productCode": "Y3", "productName": "迷你薯条", "quantity": 1},
+          {"productCode": "Y4", "productName": "无糖可口可乐中杯", "quantity": 1}]},
 ]
 
 

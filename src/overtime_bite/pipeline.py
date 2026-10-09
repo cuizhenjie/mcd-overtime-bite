@@ -328,18 +328,32 @@ class OvertimeBite:
     # ---- 内部辅助 ----
 
     def _now_from_mcp(self) -> datetime:
-        """用 MCP 的权威时间，避免 LLM 猜错时区或日期。"""
+        """用 MCP 的权威时间，避免 LLM 猜错时区或日期。
+
+        实测麦当劳 now-time-info 同时给出 ``data.datetime``（ISO，带 T）
+        与 ``data.formatted``（空格分隔），两种格式都要认。
+        """
         try:
             data = self.provider.now()
         except Exception:  # noqa: BLE001 - 时间拿不到时退回本机时间
             return datetime.now()
-        for key in ("datetime", "time", "currentTime", "dateTime"):
-            value = data.get(key) if isinstance(data, dict) else None
+        if not isinstance(data, dict):
+            return datetime.now()
+
+        for key in ("formatted", "datetime", "time", "currentTime"):
+            value = data.get(key)
             if not value:
                 continue
-            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M:%S"):
+            text = str(value).strip()
+            for fmt in (
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y/%m/%d %H:%M:%S",
+            ):
                 try:
-                    return datetime.strptime(str(value), fmt)
+                    return datetime.strptime(text, fmt)
                 except ValueError:
                     continue
         return datetime.now()

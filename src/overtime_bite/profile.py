@@ -97,11 +97,11 @@ def learn_from_orders(
     drank = False
 
     for order in orders:
-        for raw in _iter_items(order):
+        for raw in flatten_order_items(order):
             name = raw.get("name", "")
             if not name:
                 continue
-            category = raw.get("category") or guess_category(name)
+            category = raw.get("category") or guess_category(name).value
             cat_counter[str(category)] += 1
             total_items += 1
 
@@ -149,13 +149,42 @@ def learn_from_orders(
     )
 
 
-def _iter_items(order: dict) -> list[dict]:
-    """兼容 MCP 订单结构里几种可能的字段名，尽最大努力拿到商品列表。"""
-    for key in ("items", "goods", "products", "detailList", "mealList"):
+def _iter_products(order: dict) -> list[dict]:
+    """从订单里取出商品列表。
+
+    实测麦当劳 ``order-list`` 的字段名是 ``orderProductList``，
+    单品名为 ``productName``，套餐内部另有 ``comboItemList``（内层字段名是 ``name``）。
+    这里兼容多种命名，避免服务端微调字段就静默失效。
+    """
+    for key in ("orderProductList", "items", "goods", "products", "detailList", "mealList"):
         value = order.get(key)
         if isinstance(value, list):
             return [x for x in value if isinstance(x, dict)]
     return []
+
+
+def flatten_order_items(order: dict) -> list[dict]:
+    """展开订单商品，**套餐按内层单品计算**。
+
+    为什么不把套餐外壳也算进去：画像回答的是"我实际吃了什么"，
+    而"巨无霸套餐"这个外壳会既污染 ``combo`` 品类权重，又稀释内层真实偏好。
+    展开后一次「巨无霸套餐」会变成 巨无霸 / 中薯条 / 可乐 三条信号。
+    """
+    flattened: list[dict] = []
+    for raw in _iter_products(order):
+        nested = raw.get("comboItemList") or []
+        if nested:
+            for child in nested:
+                if not isinstance(child, dict):
+                    continue
+                name = child.get("name") or child.get("productName") or ""
+                if name:
+                    flattened.append({"name": name, "category": None})
+        else:
+            name = raw.get("productName") or raw.get("name") or ""
+            if name:
+                flattened.append({"name": name, "category": raw.get("category")})
+    return flattened
 
 
 def describe_profile(profile: TasteProfile, orders_count: int) -> str:

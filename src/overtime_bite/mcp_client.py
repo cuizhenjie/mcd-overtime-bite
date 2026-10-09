@@ -232,11 +232,12 @@ class McdMcpClient:
 
     @staticmethod
     def _unwrap(result: Any, tool_name: str) -> dict[str, Any]:
-        """把 CallToolResult 解析成 dict，并对工具级错误做显式处理。
+        """把 CallToolResult 解析成 dict，并处理两层错误。
 
-        **关键**：MCP 的工具执行失败时，协议层仍然返回 200，只是把
-        ``isError`` 置为 true、内容放在 text 里。若不判断，下游会把这个
-        错误字符串当成正常业务数据继续处理——非常隐蔽。
+        三种失败形态都要拦住，否则会以"正常数据"的形式流到业务逻辑里：
+          1. 协议级错误 —— ``CallToolResult.isError``
+          2. 业务级错误 —— 响应外壳里 ``success: false``（HTTP 仍是 200）
+          3. markdown 包裹 / 纯 JSON 两种返回形态
         """
         is_error = getattr(result, "isError", None)
         if is_error is None and isinstance(result, dict):
@@ -245,13 +246,17 @@ class McdMcpClient:
             raise McpError(f"{tool_name} 执行失败：{_extract_text(result) or '服务端未返回原因'}")
 
         text = _extract_text(result)
-        if not text:
-            return {}
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
+        payload = parse_mcp_payload(text)
+        if payload is None:
+            if not text.strip():
+                return {}
+            # 解析不出来就原样暴露，不能悄悄变成空 dict 掩盖问题
             return {"raw": text}
-        return parsed if isinstance(parsed, dict) else {"raw": parsed}
+
+        payload = unwrap_envelope(payload)
+        if isinstance(payload, dict):
+            return payload
+        return {"items": payload} if isinstance(payload, list) else {"raw": payload}
 
     def close(self) -> None:
         """关闭会话并停止事件循环线程。可重复调用。"""
@@ -296,6 +301,74 @@ def _extract_text(result: Any) -> str:
         if text:
             parts.append(str(text))
     return "\n".join(parts)
+
+
+# 麦当劳 MCP 有两种返回形态，实测同一 Server 里混用：
+#   1) 纯 JSON，例如 delivery-query-addresses → []
+#   2) markdown 字段说明 + "## Original Response" 后跟真实 JSON
+# 写死其中一种会让一半工具静默失效。
+_ORIGINAL_RESPONSE = "## Original Response"
+
+
+def _strip_code_fence(text: str) -> str:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.split("\n", 1)[-1]
+        if stripped.endswith("```"):
+            stripped = stripped[: -3]
+    return stripped.strip()
+
+
+def parse_mcp_payload(text: str) -> Any:
+    """把 MCP 返回的文本解析成 Python 对象，两种形态都支持。
+
+    解析不出来时返回 None——由调用方决定如何降级，绝不返回半截字符串当数据用。
+    """
+    if not text:
+        return None
+    candidate = text.strip()
+
+    # 形态 1：纯 JSON
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+
+    # 形态 2：markdown 包裹，取最后一个 "## Original Response" 之后的 JSON
+    idx = candidate.rfind(_ORIGINAL_RESPONSE)
+    if idx >= 0:
+        tail = _strip_code_fence(candidate[idx + len(_ORIGINAL_RESPONSE):])
+        try:
+            return json.loads(tail)
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def unwrap_envelope(payload: Any) -> Any:
+    """剥离麦当劳的统一响应外壳，取出 ``data``。
+
+    真实外壳形如::
+
+        {"success": true, "code": 200, "message": "请求成功",
+         "traceId": "...", "data": {... 或 [...]}}
+
+    关键点：**业务失败时 HTTP 仍是 200、isError 仍可能是 false**，
+    只看 isError 会把 ``{"success": false, "message": "..."}`` 当成正常数据。
+
+    Returns:
+        data 字段的内容；若无外壳则原样返回。
+
+    Raises:
+        McpError: success 为 false 时
+    """
+    if isinstance(payload, dict) and "success" in payload:
+        if not payload.get("success", True):
+            message = payload.get("message") or f"code={payload.get('code')}"
+            raise McpError(f"麦当劳接口返回失败：{message}")
+        if "data" in payload:
+            return payload["data"]
+    return payload
 
 
 # ---- 语义化封装：让 pipeline 不需要关心工具名和字段名 ----
@@ -358,7 +431,10 @@ class McdDataProvider:
 
 
 def _as_list(data: Any, keys: tuple[str, ...]) -> list[dict[str, Any]]:
-    """MCP 返回结构不完全一致，这里做一次宽松提取。"""
+    """MCP 返回结构不完全一致，这里做一次宽松提取。
+
+    实际遇到的形态：可能是 list，也可能已由 ``_unwrap`` 包成 ``{"items": [...]}``。
+    """
     if isinstance(data, list):
         return [x for x in data if isinstance(x, dict)]
     if isinstance(data, dict):
@@ -366,6 +442,10 @@ def _as_list(data: Any, keys: tuple[str, ...]) -> list[dict[str, Any]]:
             value = data.get(key)
             if isinstance(value, list):
                 return [x for x in value if isinstance(x, dict)]
+        # _unwrap 对 list 结果统一包成了 {"items": [...]}
+        items = data.get("items")
+        if isinstance(items, list):
+            return [x for x in items if isinstance(x, dict)]
         for value in data.values():
             if isinstance(value, list) and value and isinstance(value[0], dict):
                 return value
