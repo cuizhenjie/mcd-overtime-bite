@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 环境变量与本地配置（含真实 Token，绝不入库）
+.env
+.env.*
+*.local
+config/profile.yaml
+config/*.local.yaml
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
+
+# WorkBuddy 开发上下文（如参赛 WorkBuddy 专项奖励，可按官方要求另行提交）
+# workbuddy.md

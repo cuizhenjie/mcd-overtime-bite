@@ -1,0 +1,51 @@
+# 用户配置样例
+#
+# 复制为 profile.yaml 后按需修改，或直接以 dict 传给 OvertimeConfig.from_dict()。
+# 注意：这里只放"偏好"，不放 Token、密钥等敏感信息。
+
+# ---- 预算 ----
+# 单笔预算上限（分）。硬约束，寻优器绝不会返回超过它的方案。
+budget_cap_cents: 3000
+
+# ---- 触发窗口（24 小时制，左闭右开）----
+trigger_start_hour: 18
+trigger_end_hour: 24
+
+# 过了这个点就不再自动下单，转为人工确认
+auto_order_deadline_hour: 22
+
+# ---- 自动化边界 ----
+auto_order: true          # 是否允许无人工确认直接下单
+max_auto_orders_per_day: 1
+
+# 免打扰时段，例如 [21, 23] 表示 21:00~23:00 只做静默推荐
+quiet_hours: null
+
+# ---- 渠道 ----
+pickup_max_walk_meters: 800   # 愿意步行取餐的最大距离
+max_items_per_order: 4
+max_coupons: 2
+
+# ---- 口味画像 ----
+# 留空则完全由历史订单自动学习（order-list）。
+# 显式填写会作为先验，与学习结果叠加。
+profile:
+  # 品类权重 0.0 ~ 1.0，缺失视为中性 0.5
+  likes:
+    burger: 0.7
+    side: 0.6
+    drink: 0.6
+    dessert: 0.3
+
+  # 硬性忌口，命中即从所有候选中剔除
+  avoid_categories: []
+  avoid_keywords: ["香菜", "洋葱"]
+
+  # 命中的口味标签会加权
+  prefer_tags: ["beef"]
+
+  # 辣度容忍 0~3，超过则过滤辣味商品
+  spicy_tolerance: 2
+
+  need_drink: true                      # 加班容易缺水犯困
+  night_snack_wants_dessert: true       # 夜宵来点甜的有助于缓解疲劳
