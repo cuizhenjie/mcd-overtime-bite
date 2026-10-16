@@ -52,16 +52,40 @@ class MenuItem:
 
 @dataclass(frozen=True)
 class Coupon:
-    """优惠券。区分「折扣」与「满减」两类。"""
+    """优惠券。
+
+    ⚠️ 真实麦当劳券以**商品型**为主（如「中薯条买一送一」），只绑定一个
+    ``productCode``，**没有"满 X 减 Y"的金额结构**。因此：
+
+      - ``discount_cents`` 未知时必须留 0，**绝不能臆造优惠金额**——
+        凭空算出的"省 ¥10"会让展示金额与实际扣款不符
+      - 券的真实作用是「让含该商品的篮子更划算」，由 ``calculate-price`` 裁决
+    """
 
     coupon_id: str
     title: str
-    threshold_cents: int = 0       # 满减门槛，0 表示无门槛
-    discount_cents: int = 0        # 直减金额
-    scope: str = "all"             # all / category / item
+    threshold_cents: int = 0       # 满减门槛，0 表示无门槛（商品型券通常为 0）
+    discount_cents: int = 0        # 直减金额；未知时为 0
+    scope: str = "all"             # all / product
+    # 适用的商品编码集合；商品型券据此生效
+    product_codes: tuple[str, ...] = ()
+
+    @property
+    def is_product_coupon(self) -> bool:
+        """商品型券：有明确的适用商品，但没有可计算的优惠金额。"""
+        return bool(self.product_codes) and self.discount_cents == 0
+
+    def applies_to(self, item_ids: set[str]) -> bool:
+        """篮子中是否含有该券的适用商品。"""
+        return bool(self.product_codes) and bool(self.product_codes_set() & item_ids)
+
+    def product_codes_set(self) -> frozenset[str]:
+        return frozenset(self.product_codes)
 
     def discount_for(self, subtotal_cents: int) -> int:
-        """计算这张券能省多少，永远不会返回超过商品金额的值。"""
+        """可计算的直减金额。商品型券返回 0——金额由 calculate-price 裁决。"""
+        if self.is_product_coupon:
+            return 0
         if subtotal_cents < self.threshold_cents:
             return 0
         return min(self.discount_cents, subtotal_cents)
@@ -73,7 +97,11 @@ class Coupon:
 
 @dataclass
 class Store:
-    """门店信息（来自 ``query-nearby-stores`` / ``delivery-query-stores``）。"""
+    """门店信息（来自 ``query-nearby-stores`` / ``delivery-query-stores``）。
+
+    ``store_code`` 与 ``be_code`` 是麦当劳侧的入参配对关系，不是装饰：
+    查询菜单/券时两者要一起传；到店自取场景 ``be_code`` 必须为空，传了会报错。
+    """
 
     store_id: str
     name: str
@@ -83,6 +111,9 @@ class Store:
     supports_delivery: bool = True
     delivery_fee_cents: int = 0
     eta_minutes: int = 30
+    # 业务类型：1 到店自提 / 2 麦乐送 / 5 得来速 / 6 团餐
+    be_type: int = 1
+    be_code: str = ""
 
     def channel_fee(self, channel: Channel) -> int:
         if channel is Channel.DELIVERY:

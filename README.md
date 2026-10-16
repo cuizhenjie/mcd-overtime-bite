@@ -199,11 +199,14 @@ python tests/test_trigger.py            # 9 passed   触发闸门与自动化边
 python tests/test_optimizer.py          # 10 passed  预算硬约束与寻优
 python tests/test_pipeline.py           # 15 passed  端到端与下单边界
 python tests/test_mcp_integration.py    # 9 passed   真实 MCP 协议集成测试
+python tests/test_real_responses.py     # 18 passed  真实响应结构回归
 ```
 
-**43 passed**。前三组零依赖、无需 Token；集成测试会**真的起一个 MCP 服务器**
+**61 passed**。
+
+前三组零依赖、无需 Token；集成测试会**真的起一个 MCP 服务器**
 （streamable-http），走完整 initialize → call 流程，并在服务端侧实测
-`Authorization` 头是否送达。
+`Authorization` 头是否送达；`test_real_responses.py` 的样本全部来自实际调用结果。
 
 <details>
 <summary>为什么要有集成测试：它守住一个已经踩过的坑</summary>

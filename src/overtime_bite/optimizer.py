@@ -65,23 +65,34 @@ def _passes_filters(items: tuple[MenuItem, ...], profile: TasteProfile) -> bool:
 
 
 def _coupon_options(
-    subtotal_cents: int, coupons: list[Coupon], max_coupons: int
+    subtotal_cents: int,
+    coupons: list[Coupon],
+    max_coupons: int,
+    item_ids: frozenset[str],
 ) -> list[tuple[Coupon, ...]]:
-    """枚举该小计下值得使用的券组合。
+    """枚举该篮子值得使用的券组合。
 
-    只保留真正能省钱且金额合理的券——大额券通常有严格品类限制，
-    叠太多反而可能触发门店风控，这里做保守处理。
+    真实麦当劳券以**商品型**为主（「中薯条买一送一」只绑定一个 productCode），
+    券本身没有可计算的减免金额。因此这里分两类处理：
+
+      - 可计算金额的满减券：按门槛选，叠加以尽量压低总价
+      - 商品型券：篮子含其适用商品即可生效，不折算金额，
+        改由 ``_score`` 给予倾向加权（由 calculate-price 裁决真实效果）
     """
     usable = [
         c for c in coupons
-        if c.discount_for(subtotal_cents) > 0 and c.discount_cents <= 5000
+        if c.is_product_coupon or c.discount_for(subtotal_cents) > 0
     ]
+    usable = [c for c in usable if c.discount_cents <= 5000]
     if not usable:
         return [()]
 
     options: list[tuple[Coupon, ...]] = [()]
     for size in range(1, min(max_coupons, len(usable)) + 1):
         for combo in itertools.combinations(usable, size):
+            # 商品型券只有真的命中适用商品时才算数
+            if any(c.is_product_coupon and not c.applies_to(item_ids) for c in combo):
+                continue
             total_discount = sum(c.discount_cents for c in combo)
             # 券面额总和超过小计本身就没意义了
             if total_discount < subtotal_cents:
@@ -118,10 +129,14 @@ def _score(
         reasons.append(f"口味匹配度高（{taste:.2f}），符合历史点餐习惯")
 
     # ---- 3. 预算利用 ----
-    # 在不超过预算的前提下，越贴近预算越"吃得好"，但要归一化避免压倒其它目标
     budget_util = candidate.total_cents / candidate.subtotal_cents if candidate.subtotal_cents else 0
     if candidate.discount_cents > 0:
         reasons.append(f"叠加优惠省 ¥{candidate.discount_cents / 100:.2f}")
+    else:
+        # 商品型券没有可计算金额，只说明"命中了"，不编造省钱数字
+        hit = [c for c in candidate.coupons_used if c.is_product_coupon]
+        if hit:
+            reasons.append("含可用券商品：" + "、".join(c.title for c in hit[:2]))
 
     # ---- 4. 速度 ----
     if candidate.channel is Channel.PICKUP:
@@ -192,6 +207,7 @@ def optimize(
         subtotal = sum(i.price_cents for i in items)
         if subtotal <= 0:
             continue
+        item_ids = frozenset(i.item_id for i in items)
         # 券前先做一次粗过滤，避免无谓的券枚举
         if subtotal + fee > budget_cents:
             # 券可能让原本超预算的方案变得可行，所以不能直接丢弃，
@@ -199,7 +215,7 @@ def optimize(
             if subtotal + fee > budget_cents * 1.5:
                 continue
 
-        for coupon_set in _coupon_options(subtotal, coupons, max_coupons):
+        for coupon_set in _coupon_options(subtotal, coupons, max_coupons, item_ids):
             discount = sum(c.discount_for(subtotal) for c in coupon_set)
             candidate = Candidate(
                 items=items,
@@ -215,11 +231,17 @@ def optimize(
             candidate.score, candidate.reasons = _score(items, candidate, profile, store)
             candidates.append(candidate)
 
-    # 同分去重：按 (商品集合, 渠道) 只保留最优惠的那张券组合
+    # 同（商品集合, 渠道）去重：总价更低者胜；**同价时优先用券者**。
+    # 商品型券不折算金额，所以"用券版"和"不用券版"总价完全相同——
+    # 若只比总价，用券版会被先出现的空券组合挤掉，券就白领了。
     best_by_key: dict[tuple, Candidate] = {}
     for c in candidates:
         key = (tuple(sorted(i.item_id for i in c.items)), c.channel)
-        if key not in best_by_key or c.total_cents < best_by_key[key].total_cents:
+        incumbent = best_by_key.get(key)
+        if incumbent is None or (c.total_cents, -len(c.coupons_used)) < (
+            incumbent.total_cents,
+            -len(incumbent.coupons_used),
+        ):
             best_by_key[key] = c
 
     ranked = sorted(best_by_key.values(), key=lambda c: (-c.score, c.total_cents))

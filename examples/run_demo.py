@@ -45,7 +45,13 @@ def i2str(c) -> str:
 
 
 def main() -> None:
-    cfg = OvertimeConfig(budget_cap_cents=3000, auto_order=True)
+    cfg = OvertimeConfig(
+        budget_cap_cents=3000,
+        auto_order=True,
+        # 真实 query-nearby-stores 收 city + keyword，不收地址
+        city="北京",
+        store_keyword="望京",
+    )
 
     scenarios = [
         ("场景 1｜19:30 加班中，自动触发", datetime(2026, 10, 9, 19, 30), True, False),
@@ -58,7 +64,10 @@ def main() -> None:
         provider = MockProvider(now=now)
         bot = OvertimeBite(provider, cfg)
         state = TriggerState(date=f"{now:%Y-%m-%d}")
-        decision = bot.run(now=now, state=state, overtime_evidence=evidence, dry_run=True)
+        decision = bot.run(
+            now=now, state=state, overtime_evidence=evidence,
+            eating_at_desk=False, dry_run=True,
+        )
         show(title, decision, provider)
 
     # 幂等演示：同一时间窗跑两次
@@ -69,7 +78,7 @@ def main() -> None:
     state = TriggerState(date="2026-10-09", ordered_windows={"2026-10-09#dinner-16"})
     provider = MockProvider(now=now)
     decision = OvertimeBite(provider, cfg).run(
-        now=now, state=state, overtime_evidence=True, dry_run=True
+        now=now, state=state, overtime_evidence=True, eating_at_desk=False, dry_run=True
     )
     print(f"  动作：{decision.action.value}")
     print(f"  原因：{decision.summary}")

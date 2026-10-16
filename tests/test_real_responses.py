@@ -185,6 +185,131 @@ def test_full_mcp_unwrap_chain_on_real_sample():
     assert out["timezone"] == "GMT+08:00", out
 
 
+
+# ---- 真实菜单里的非正餐条目 ----
+# 以下名称与价格均取自真实门店（马家堡路店 1950609）菜单。
+
+
+def test_non_food_items_are_detected():
+    """菜单里真实存在酱料与周边玩具，误当正餐推荐会很荒诞。"""
+    from overtime_bite.profile import is_non_food
+
+    assert is_non_food("韩式烟熏芝士风味酱") is True
+    assert is_non_food("“葱不求人“按摩捶痒痒挠") is True
+    assert is_non_food("巨无霸") is False
+    assert is_non_food("中薯条") is False
+
+
+def test_pipeline_drops_non_food_items():
+    from overtime_bite.pipeline import _to_menu
+
+    raw = [
+        {"code": "S", "name": "韩式烟熏芝士风味酱", "priceCents": 300, "categoryName": "蘸酱炸鸡"},
+        {"code": "T", "name": "“葱不求人“按摩捶痒痒挠", "priceCents": 1490, "categoryName": "小食甜品/其他"},
+        {"code": "B", "name": "巨无霸", "priceCents": 2200, "categoryName": "汉堡"},
+    ]
+    menu = _to_menu(raw)
+    assert [m.name for m in menu] == ["巨无霸"], [m.name for m in menu]
+
+
+def test_classify_uses_api_category_name():
+    """优先用 API 权威分类名，而不是只猜名字。"""
+    from overtime_bite.models import Category
+    from overtime_bite.profile import classify_item
+
+    assert classify_item("芝士安格斯厚牛堡", "汉堡") is Category.BURGER
+    assert classify_item("麦辣鸡翅2块", "炸鸡") is Category.CHICKEN
+    assert classify_item("可乐", "饮品") is Category.DRINK
+    assert classify_item("冰燕麦奶铁中杯", "麦咖啡™") is Category.DRINK
+    assert classify_item("经典麦旋风", "小食甜品/其他") is Category.DESSERT
+    # 混合分类下靠名称二次细分
+    assert classify_item("中薯条", "小食甜品/其他") is Category.SIDE
+
+
+def test_classify_no_longer_defaults_sauces_to_burger():
+    """修复前没命中关键词的条目会被默认归为汉堡（酱料就是这种情况）。"""
+    from overtime_bite.models import Category
+    from overtime_bite.profile import classify_item
+
+    # 酱料不是汉堡也不是正餐——即使走到兜底也不该是汉堡
+    assert classify_item("韩式烟熏芝士风味酱", "蘸酱炸鸡") is not Category.BURGER
+
+
+def test_parse_finds_json_embedded_in_prose():
+    """形态 3：描述文字 + JSON + 尾部说明，且描述里含 data[] 会骗过朴素扫描。"""
+    text = (
+        "每个门店的基本信息按单行展示：\n"
+        "- **门店名称**: data[].storeName\n"
+        "当 reservation=true 时，⚠️ reservationTimeOptions 中的每一条数据\n"
+        '{"success":true,"code":200,"data":[{"storeCode":"1950609"}]}\n'
+        "## 展示结果时，每个门店的 storeCode 必须完整展示，\n"
+    )
+    payload = parse_mcp_payload(text)
+    assert isinstance(payload, dict), payload
+    assert payload["success"] is True
+    assert payload["data"][0]["storeCode"] == "1950609"
+
+
+def test_parse_prefers_envelope_over_stray_array():
+    """描述里的 data[] 会被 raw_decode 解成空数组，绝不能因此丢掉真响应。"""
+    text = '说明 data[].storeName 如下\n{"success":true,"data":{"x":1}}'
+    payload = parse_mcp_payload(text)
+    assert payload["data"] == {"x": 1}, payload
+
+
+
+
+# ---- 真实商品型券 ----
+
+REAL_COUPON = {
+    "title": "中薯条买一送一",
+    "couponId": "8692944B045928451618BFF22F535D2A",
+    "couponCode": "MCD6127360F1V9FU0070X",
+    "tradeDateTime": "2026-10-12 10:30:00-2026-10-16 23:59:59",
+    "products": [{"productCode": "9900012387", "productName": "中薯条买一送一"}],
+    "promotionId": "112458028",
+}
+
+
+def test_product_coupon_does_not_fabricate_discount():
+    """真实券没有减免金额，绝不能凭空算出"省 ¥X"。
+
+    这是诚实性红线：编造的优惠会让展示金额与实际扣款对不上。
+    """
+    from overtime_bite.pipeline import _to_coupons
+
+    coupons = _to_coupons([REAL_COUPON])
+    assert len(coupons) == 1
+    c = coupons[0]
+    assert c.discount_cents == 0, "商品型券不得臆造减免金额"
+    assert c.is_product_coupon is True
+    assert c.discount_for(5000) == 0
+    assert "9900012387" in c.product_codes
+    assert c.applies_to({"9900012387"}) is True
+    assert c.applies_to({"B02"}) is False
+
+
+def test_optimizer_only_uses_product_coupon_when_matched():
+    from overtime_bite.models import Category, Channel, MenuItem, Store
+    from overtime_bite.optimizer import optimize
+    from overtime_bite.pipeline import _to_coupons
+    from overtime_bite.config import TasteProfile
+
+    coupons = _to_coupons([dict(REAL_COUPON, products=[{"productCode": "FRIES"}])])
+    menu = [
+        MenuItem("FRIES", "中薯条", Category.SIDE, 1450),
+        MenuItem("BURGER", "巨无霸", Category.BURGER, 2200),
+    ]
+    store = Store(store_id="S1", name="店", distance_meters=100, delivery_fee_cents=0)
+    cands = optimize(menu, coupons, budget_cents=3000, profile=TasteProfile(),
+                     store=store, channel=Channel.PICKUP)
+    assert cands
+    fries_plan = [c for c in cands if any(i.item_id == "FRIES" for i in c.items)]
+    if fries_plan:
+        assert fries_plan[0].discount_cents == 0, "商品型券不应折算出金额"
+        assert any("可用券商品" in r for r in fries_plan[0].reasons), fries_plan[0].reasons
+
+
 def _run() -> int:
     passed, failed = 0, []
     for name, fn in sorted(globals().items()):

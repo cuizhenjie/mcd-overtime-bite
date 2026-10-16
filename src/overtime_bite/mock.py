@@ -10,23 +10,25 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from .mcp_client import McpError
+
 # 菜单价格用「元」，模拟 MCP 的真实返回格式
 _SAMPLE_MENU: list[dict[str, Any]] = [
-    {"id": "C01", "name": "巨无霸套餐", "category": "combo", "price": 39.0},
-    {"id": "C02", "name": "培根蔬萃双层牛堡套餐", "category": "combo", "price": 42.0},
-    {"id": "C03", "name": "麦辣鸡腿堡套餐", "category": "combo", "price": 33.0},
-    {"id": "B01", "name": "吉士汉堡", "category": "burger", "price": 18.0},
-    {"id": "B02", "name": "巨无霸", "category": "burger", "price": 22.0},
-    {"id": "B03", "name": "麦辣鸡腿汉堡", "category": "burger", "price": 17.0},
-    {"id": "B04", "name": "香辣鸡腿堡", "category": "burger", "price": 17.0},
-    {"id": "S01", "name": "中薯条", "category": "side", "price": 7.0},
-    {"id": "S02", "name": "麦乐鸡（5块）", "category": "side", "price": 16.0},
-    {"id": "S03", "name": "香辣鸡翅（2块）", "category": "side", "price": 9.0},
-    {"id": "D01", "name": "中可乐", "category": "drink", "price": 7.0},
-    {"id": "D02", "name": "中无糖可乐", "category": "drink", "price": 7.0},
-    {"id": "D03", "name": "燕麦拿铁", "category": "drink", "price": 15.0},
-    {"id": "T01", "name": "蛋挞（2只）", "category": "dessert", "price": 8.0},
-    {"id": "T02", "name": "麦旋风", "category": "dessert", "price": 10.0},
+    {"id": "C01", "name": "龙焰芝士棒鸡腿堡三件套", "price": 29.9, "categoryName": "汉堡", "tags": ["套餐"]},
+    {"id": "C02", "name": "培根安格斯厚牛堡三件套", "price": 45.5, "categoryName": "汉堡", "tags": ["套餐"]},
+    {"id": "C03", "name": "麦辣鸡腿堡三件套", "price": 26.0, "categoryName": "汉堡", "tags": ["套餐"]},
+    {"id": "B01", "name": "吉士汉堡", "price": 18.0, "categoryName": "汉堡"},
+    {"id": "B02", "name": "巨无霸", "price": 22.0, "categoryName": "汉堡"},
+    {"id": "B03", "name": "麦辣鸡腿汉堡", "price": 17.0, "categoryName": "汉堡"},
+    {"id": "B04", "name": "香辣鸡腿堡", "price": 17.0, "categoryName": "汉堡"},
+    {"id": "S01", "name": "中薯条", "price": 14.5, "categoryName": "小食甜品/其他"},
+    {"id": "S02", "name": "麦乐鸡5块", "price": 15.0, "categoryName": "炸鸡"},
+    {"id": "S03", "name": "麦辣鸡翅2块", "price": 15.0, "categoryName": "炸鸡"},
+    {"id": "D01", "name": "可乐", "price": 9.5, "categoryName": "饮品"},
+    {"id": "D02", "name": "阳光柠檬红茶小杯", "price": 9.5, "categoryName": "饮品"},
+    {"id": "D03", "name": "冰燕麦奶铁中杯", "price": 23.0, "categoryName": "麦咖啡"},
+    {"id": "T01", "name": "圆筒冰淇淋", "price": 5.0, "categoryName": "小食甜品/其他"},
+    {"id": "T02", "name": "经典麦旋风", "price": 14.5, "categoryName": "小食甜品/其他"},
 ]
 
 _SAMPLE_STORE = {
@@ -40,10 +42,13 @@ _SAMPLE_STORE = {
     "etaMinutes": 32,
 }
 
+# 真实门店券是**商品型**「买一送一」，绑定 productCode，没有可计算的减免金额。
+# 这里刻意用真实结构而非自造的满减券——自造会让演示凭空显示"省 ¥10"。
 _SAMPLE_COUPONS = [
-    {"id": "CP01", "title": "满30减6", "threshold": 30.0, "discount": 6.0},
-    {"id": "CP02", "title": "满20减3", "threshold": 20.0, "discount": 3.0},
-    {"id": "CP03", "title": "汉堡单单减4", "threshold": 0.0, "discount": 4.0},
+    {"couponId": "8692944B045928451618BFF22F535D2A", "title": "中薯条买一送一",
+     "products": [{"productCode": "S01", "productName": "中薯条买一送一"}]},
+    {"couponId": "E05F6BFB4BAFAA5DB44B233583BFE711", "title": "王牌小食拼",
+     "products": [{"productCode": "S02", "productName": "王牌小食拼"}]},
 ]
 
 _SAMPLE_HISTORY: list[dict[str, Any]] = [
@@ -108,15 +113,41 @@ class MockProvider:
         self.calls.append("delivery-query-addresses")
         return [{"id": "A1", "city": "北京市", "district": "朝阳区", "detail": "望京SOHO T1"}]
 
-    def nearby_stores(self, address: str | None = None) -> list[dict[str, Any]]:
+    def nearby_stores(self, *, city: str = "", keyword: str = "", be_type: int = 1,
+                      search_type: int = 2) -> list[dict[str, Any]]:
+        """签名与真实 ``query-nearby-stores`` 一致。"""
         self.calls.append("query-nearby-stores")
+        if not city:
+            raise McpError("麦当劳接口返回失败：城市名或者关键词不能为空")
         return [self._store]
 
-    def meals(self, store_id: str) -> list[dict[str, Any]]:
+    def menu_with_prices(self, store_code: str, *, be_type: int = 1, order_type: int = 1,
+                         be_code: str = "") -> list[dict[str, Any]]:
+        """与真实 provider 同构：直接产出带名称与价格的菜单条目。"""
         self.calls.append("query-meals")
-        return list(self._menu)
+        self.calls.append("calculate-price")
+        out = []
+        for m in self._menu:
+            out.append({
+                "code": m["id"],
+                "name": m["name"],
+                "price": m["price"],
+                "priceCents": int(round(float(m["price"]) * 100)),
+                "categoryName": m.get("categoryName", ""),
+                "tags": m.get("tags", []),
+            })
+        return out
 
-    def store_coupons(self, store_id: str) -> list[dict[str, Any]]:
+    def meals(self, store_code: str, *, be_code: str = "", be_type: int = 1,
+              order_type: int = 1) -> list[dict[str, Any]]:
+        self.calls.append("query-meals")
+        return [
+            {"name": m.get("categoryName", "菜单"), "meals": [{"code": m["id"], "tags": []}]}
+            for m in self._menu
+        ]
+
+    def store_coupons(self, store_code: str, *, be_code: str = "", be_type: int = 1,
+                      order_type: int = 1) -> list[dict[str, Any]]:
         self.calls.append("query-store-coupons")
         return list(self._coupons)
 
@@ -125,9 +156,9 @@ class MockProvider:
         self.bound_coupons = True
         return {"success": True, "bound": len(self._coupons)}
 
-    def order_history(self, limit: int = 20) -> list[dict[str, Any]]:
+    def order_history(self) -> list[dict[str, Any]]:
         self.calls.append("order-list")
-        return list(self._history[:limit])
+        return list(self._history)
 
     def calculate_price(self, payload: dict[str, Any]) -> dict[str, Any]:
         """模拟 ``calculate-price``：按真实口径算小计、配送费、优惠、应付。

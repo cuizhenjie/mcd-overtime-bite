@@ -74,6 +74,12 @@ class OvertimeConfig:
     # 到店取餐的最大步行距离（米）。超过则只考虑麦乐送外送
     pickup_max_walk_meters: int = 800
 
+    # ---- 门店定位 ----
+    # 真实 query-nearby-stores 收 city + keyword（不收地址），beType 必传。
+    # 留空会导致门店查询失败，OvertimeBite 会返回"未配置门店"提示。
+    city: str = ""
+    store_keyword: str = ""
+
     # 每个订单最多几件商品
     max_items_per_order: int = 4
 

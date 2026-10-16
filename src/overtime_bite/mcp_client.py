@@ -17,6 +17,10 @@ from typing import Any, Callable
 MCP_URL = "https://mcp.mcd.cn"
 TOKEN_ENV = "MCD_MCP_TOKEN"
 
+# calculate-price 单次可带的商品数上限。实测 117 件会报「商品超过数量限制」，
+# 30 件稳定通过，故按此分批。
+PRICE_CHUNK_SIZE = 30
+
 # 麦当劳 MCP 工具名（与官方 mcd-mcp-server v1.0.9 文档一致）
 TOOL_NOW_TIME = "now-time-info"
 TOOL_QUERY_ADDRESSES = "delivery-query-addresses"
@@ -303,10 +307,12 @@ def _extract_text(result: Any) -> str:
     return "\n".join(parts)
 
 
-# 麦当劳 MCP 有两种返回形态，实测同一 Server 里混用：
+# 麦当劳 MCP 实测至少有三种返回形态，同一个 Server 里混用：
 #   1) 纯 JSON，例如 delivery-query-addresses → []
-#   2) markdown 字段说明 + "## Original Response" 后跟真实 JSON
-# 写死其中一种会让一半工具静默失效。
+#   2) markdown 字段说明 + "## Original Response" + JSON（now-time-info）
+#   3) 一段描述文字 + JSON + 又一段描述文字（query-nearby-stores）
+# 形态 3 连固定锚点都没有，只能靠扫描定位 JSON 的起止，因此统一用
+# raw_decode 逐个候选位置试探。
 _ORIGINAL_RESPONSE = "## Original Response"
 
 
@@ -320,28 +326,57 @@ def _strip_code_fence(text: str) -> str:
 
 
 def parse_mcp_payload(text: str) -> Any:
-    """把 MCP 返回的文本解析成 Python 对象，两种形态都支持。
+    """把 MCP 返回的文本解析成 Python 对象，三种形态都支持。
 
-    解析不出来时返回 None——由调用方决定如何降级，绝不返回半截字符串当数据用。
+    策略：先试整体解析，再试 ``## Original Response`` 锚点，
+    最后用 ``raw_decode`` 扫描所有 ``{`` / ``[`` 起点，找出第一个能完整
+    解出 JSON 的位置——形态 3 的 JSON 前后都夹着散文，只有扫描才找得到。
+
+    解析不出来返回 None，由调用方降级；绝不返回半截字符串冒充数据。
     """
     if not text:
         return None
     candidate = text.strip()
 
-    # 形态 1：纯 JSON
+    # 形态 1：整体就是 JSON
     try:
         return json.loads(candidate)
     except json.JSONDecodeError:
         pass
 
-    # 形态 2：markdown 包裹，取最后一个 "## Original Response" 之后的 JSON
+    # 形态 2：固定锚点
     idx = candidate.rfind(_ORIGINAL_RESPONSE)
     if idx >= 0:
         tail = _strip_code_fence(candidate[idx + len(_ORIGINAL_RESPONSE):])
         try:
             return json.loads(tail)
         except json.JSONDecodeError:
-            return None
+            pass
+
+    # 形态 3：在散文中扫描 JSON 起点
+    #
+    # ⚠️ 不能"第一个能解出来的位置"就算数——描述文字里到处都是
+    # ``data[].storeName`` 这种写法，raw_decode 会在那个 ``[`` 处
+    # 成功解出一个**空数组**，把后面真正的响应信封整个跳过去。
+    # 所以按优先级扫三遍：带 success 的信封对象 > 任意对象 > 任意值。
+    decoder = json.JSONDecoder()
+    positions = [i for i, ch in enumerate(candidate) if ch in "{["]
+    fallbacks: list[Any] = []
+
+    for i in positions:
+        try:
+            value, _ = decoder.raw_decode(candidate, i)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            if "success" in value:
+                return value
+            fallbacks.append(value)
+        elif not fallbacks:
+            fallbacks.append(value)
+
+    if fallbacks:
+        return fallbacks[0]
     return None
 
 
@@ -378,7 +413,21 @@ class McdDataProvider:
     """把麦当劳 MCP 的原始返回，翻译成 OvertimeBite 的领域模型。
 
     这一层的存在还有一个好处：**换 MCP 版本时只需要改这里**。
+
+    ⚠️ 参数名全部来自 ``list_tools()`` 实际返回的 inputSchema，不是猜的。
+    麦当劳的工具有几个反直觉之处，改动前务必核对：
+      - ``query-nearby-stores`` 收 ``city`` + ``keyword`` + **必传** ``beType``，
+        没有 ``address`` 参数
+      - ``query-meals`` / ``query-store-coupons`` 收 ``storeCode`` + ``beCode``
+        + ``beType`` + ``orderType``，不是 ``storeId``
+      - ``order-list`` **不接受任何参数**
     """
+
+    # beType 取值（服务端枚举）
+    BE_PICKUP = 1        # 到店自提
+    BE_DELIVERY = 2     # 麦乐送
+    BE_DRIVE_THRU = 5   # 得来速车道取餐
+    BE_CATERING = 6     # 企业团餐
 
     def __init__(self, client: McdMcpClient) -> None:
         self._client = client
@@ -387,32 +436,99 @@ class McdDataProvider:
         return self._client.call(TOOL_NOW_TIME)
 
     def my_addresses(self) -> list[dict[str, Any]]:
+        """配送地址列表（外送场景）。"""
         data = self._client.call(TOOL_QUERY_ADDRESSES)
         return _as_list(data, ("addresses", "list", "data"))
 
-    def nearby_stores(self, address: str | None = None) -> list[dict[str, Any]]:
-        args = {"address": address} if address else {}
+    def nearby_stores(
+        self,
+        *,
+        city: str,
+        keyword: str = "",
+        be_type: int = BE_PICKUP,
+        search_type: int = 2,
+    ) -> list[dict[str, Any]]:
+        """按城市/关键词检索门店。
+
+        Args:
+            city: 城市名，必填（缺失会返回 code=600058）
+            keyword: 地址/商圈关键词，如「望京」
+            be_type: 1 到店自提 / 2 麦乐送 / 5 得来速
+            search_type: 2 按位置搜索（默认）；1 只搜收藏餐厅
+        """
+        args: dict[str, Any] = {"beType": be_type, "searchType": search_type}
+        if city:
+            args["city"] = city
+        if keyword:
+            args["keyword"] = keyword
         data = self._client.call(TOOL_NEARBY_STORES, args)
         return _as_list(data, ("stores", "list", "data"))
 
-    def meals(self, store_id: str) -> list[dict[str, Any]]:
-        data = self._client.call(TOOL_QUERY_MEALS, {"storeId": store_id})
+    def delivery_stores(self, address_id: str) -> list[dict[str, Any]]:
+        """按已保存地址查可配送门店（外送场景）。"""
+        data = self._client.call(TOOL_DELIVERY_STORES, {
+            "addressId": address_id,
+            "beType": self.BE_DELIVERY,
+        })
+        return _as_list(data, ("stores", "list", "data"))
+
+    def meals(
+        self,
+        store_code: str,
+        *,
+        be_code: str = "",
+        be_type: int = BE_PICKUP,
+        order_type: int = 1,
+    ) -> list[dict[str, Any]]:
+        """门店在售菜单。
+
+        Args:
+            store_code: ``storeCode``，纯数字，来自门店查询结果
+            be_code: ``beCode``，与 storeCode 配对；得来速/外送场景必传
+            be_type: 业务类型
+            order_type: 1 到店 / 2 外送
+        """
+        args: dict[str, Any] = {"storeCode": store_code, "beType": be_type, "orderType": order_type}
+        if be_code:
+            args["beCode"] = be_code
+        data = self._client.call(TOOL_QUERY_MEALS, args)
         return _as_list(data, ("meals", "menu", "list", "data"))
 
-    def store_coupons(self, store_id: str) -> list[dict[str, Any]]:
-        data = self._client.call(TOOL_STORE_COUPONS, {"storeId": store_id})
+    def store_coupons(
+        self,
+        store_code: str,
+        *,
+        be_code: str = "",
+        be_type: int = BE_PICKUP,
+        order_type: int = 1,
+    ) -> list[dict[str, Any]]:
+        """该门店当前可用券。参数与 :meth:`meals` 同构。"""
+        args: dict[str, Any] = {"storeCode": store_code, "beType": be_type, "orderType": order_type}
+        if be_code:
+            args["beCode"] = be_code
+        data = self._client.call(TOOL_STORE_COUPONS, args)
         return _as_list(data, ("coupons", "list", "data"))
 
     def bind_all_coupons(self) -> dict[str, Any]:
-        """一键领取所有可领券——这是省钱动作里收益最高、风险最低的一步。"""
+        """一键领取所有可领券——这是省钱动作里收益最高、风险最低的一步。
+
+        注意：这是**写操作**，会真实把券领进用户账户，调用前应取得用户确认。
+        """
         return self._client.call(TOOL_AUTO_BIND_COUPONS)
 
+    def available_coupons(self) -> list[dict[str, Any]]:
+        """可领取的券（只读）。"""
+        data = self._client.call(TOOL_AVAILABLE_COUPONS)
+        return _as_list(data, ("coupons", "list", "data"))
+
     def my_coupons(self) -> list[dict[str, Any]]:
+        """账户已有券。"""
         data = self._client.call(TOOL_MY_COUPONS)
         return _as_list(data, ("coupons", "list", "data"))
 
-    def order_history(self, limit: int = 20) -> list[dict[str, Any]]:
-        data = self._client.call(TOOL_ORDER_LIST, {"limit": limit})
+    def order_history(self) -> list[dict[str, Any]]:
+        """历史订单。实测该工具**不接受任何参数**。"""
+        data = self._client.call(TOOL_ORDER_LIST)
         return _as_list(data, ("orders", "list", "data"))
 
     def nutrition(self) -> dict[str, Any]:
@@ -423,10 +539,90 @@ class McdDataProvider:
 
         **重要**：本地寻优器只用来"生成候选"，最终金额一律以本工具返回为准，
         避免自己算错优惠导致下单金额与展示不符。
+
+        金额单位是**分**（subtotal=2990 表示 ¥29.90）。
         """
         return self._client.call(TOOL_CALC_PRICE, payload)
 
+    def menu_with_prices(
+        self,
+        store_code: str,
+        *,
+        be_type: int = BE_PICKUP,
+        order_type: int = 1,
+        be_code: str = "",
+    ) -> list[dict[str, Any]]:
+        """取回「带真实名称与价格」的完整菜单。
+
+        为什么需要这个方法：`query-meals` 只返回分类 + 商品 ``code`` 与 ``tags``，
+        **既没有名称也没有价格**；``query-meal-detail`` 能拿到名称但仍无价格。
+        真正的价格在 ``calculate-price`` 的 ``productList`` 里，而且它同时
+        返回了 ``productName`` —— 于是「菜单」可以被 2 次调用完整还原：
+
+            query-meals      → 分类结构 + 全部商品 code
+            calculate-price  → 每个 code 的名称与单价
+
+        实测约束（来自真实调用）：
+          - 单次商品数超过约 30~50 会报「商品超过数量限制」，故按 30 分批
+          - **请求条数多于返回条数**：部分商品会被服务端静默剔除
+            （不可点/需选配的组合等）。因此只采信返回结果，
+            缺席即视为"当前不可点"，正好是寻优器该知道的事
+        """
+        cats = self.meals(store_code, be_code=be_code, be_type=be_type, order_type=order_type)
+
+        entries: list[tuple[str, str, list[str]]] = []
+        for cat in cats:
+            cat_name = str(cat.get("name") or "")
+            for item in cat.get("meals") or []:
+                code = item.get("code")
+                if not code:
+                    continue
+                entries.append((str(code), cat_name, list(item.get("tags") or [])))
+        if not entries:
+            return []
+
+        priced: dict[str, dict[str, Any]] = {}
+        for start in range(0, len(entries), PRICE_CHUNK_SIZE):
+            chunk = entries[start:start + PRICE_CHUNK_SIZE]
+            try:
+                result = self.calculate_price({
+                    "storeCode": store_code,
+                    "beType": be_type,
+                    "orderType": order_type,
+                    **({"beCode": be_code} if be_code else {}),
+                    "items": [{"productCode": code, "quantity": 1} for code, _, _ in chunk],
+                })
+            except McpError:
+                # 单批失败不应让整份菜单作废，跳过即可
+                continue
+            for row in (result or {}).get("productList") or []:
+                code = row.get("productCode")
+                if not code:
+                    continue
+                priced[str(code)] = {
+                    "code": str(code),
+                    "name": row.get("productName") or "",
+                    "price_cents": int(row.get("subtotal") or 0),
+                    "discount_cents": int(row.get("discount") or 0),
+                }
+
+        result_menu: list[dict[str, Any]] = []
+        for code, cat_name, tags in entries:
+            info = priced.get(code)
+            if not info or info["price_cents"] <= 0:
+                continue  # 服务端没返价格 → 当前不可点，不进搜索空间
+            result_menu.append({
+                "code": code,
+                "name": info["name"],
+                "price": info["price_cents"] / 100,
+                "priceCents": info["price_cents"],
+                "categoryName": cat_name,
+                "tags": tags,
+            })
+        return result_menu
+
     def create_order(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """**真实下单，不可逆**。调用前必须取得用户明确确认。"""
         return self._client.call(TOOL_CREATE_ORDER, payload)
 
 

@@ -54,11 +54,88 @@ _TAG_HINTS: tuple[tuple[str, str], ...] = (
 
 
 def guess_category(name: str) -> Category:
-    """按商品名关键词推断品类。未命中返回 BURGER（麦当劳主品类）。"""
+    """按商品名关键词推断品类。未命中返回 BURGER（麦当劳主品类）。
+
+    ⚠️ 这是**兜底**。真实菜单里 ``query-meals`` 已经给出权威的分类名，
+    优先用 :func:`classify_item` 的 ``category_name`` 参数。
+    """
     for kw, cat in _CATEGORY_HINTS:
         if kw in name:
             return cat
     return Category.BURGER
+
+
+# API 分类名 → 品类。注意「小食甜品/其他」是混合分类，仍需按名称二次细分。
+_CATEGORY_NAME_MAP: tuple[tuple[str, Category], ...] = (
+    ("汉堡", Category.BURGER),
+    ("炸鸡", Category.CHICKEN),
+    ("开心乐园", Category.COMBO),
+    ("大卡套餐", Category.COMBO),
+    ("套餐", Category.COMBO),
+    ("饮品", Category.DRINK),
+    ("咖啡", Category.DRINK),
+    ("小食", Category.SIDE),
+    ("甜品", Category.DESSERT),
+)
+
+# 非主食/非食品：菜单里真实存在，误当成正餐推荐会很荒诞
+_NON_FOOD_HINTS: tuple[str, ...] = (
+    "酱",        # 韩式烟熏芝士风味酱 ¥3
+    "按摩", "捶", "挠", "玩具", "周边",   # 例如「按摩捶痒痒挠」¥14.9
+)
+
+# 名称级的精确修正：优先于分类名
+_NAME_OVERRIDES: tuple[tuple[str, Category], ...] = (
+    ("麦旋风", Category.DESSERT),
+    ("圆筒", Category.DESSERT),
+    ("派", Category.DESSERT),
+    ("新地", Category.DESSERT),
+    ("薯条", Category.SIDE),
+    ("芝士条", Category.SIDE),
+    ("玉米杯", Category.SIDE),
+    ("苹果片", Category.SIDE),
+    ("鸡排", Category.CHICKEN),
+    ("鸡翅", Category.CHICKEN),
+    ("麦乐鸡", Category.CHICKEN),
+    ("脆汁鸡", Category.CHICKEN),
+    ("鸡腿堡", Category.BURGER),
+    ("堡", Category.BURGER),
+    ("咖啡", Category.DRINK),
+    ("奶铁", Category.DRINK),
+    ("奶绿", Category.DRINK),
+    ("燕麦奶", Category.DRINK),
+    ("牛奶", Category.DRINK),
+    ("纯悦", Category.DRINK),
+    ("果汁", Category.DRINK),
+    ("红茶", Category.DRINK),
+    ("美汁源", Category.DRINK),
+    ("可乐", Category.DRINK),
+    ("雪碧", Category.DRINK),
+    ("雪冰", Category.DRINK),
+    ("怡泉", Category.DRINK),
+)
+
+
+def is_non_food(name: str) -> bool:
+    """判断是否属于不该作为正餐推荐的条目（酱料、周边玩具等）。"""
+    return any(hint in name for hint in _NON_FOOD_HINTS)
+
+
+def classify_item(name: str, category_name: str | None = None) -> Category:
+    """综合 API 分类名与商品名的品类判定。
+
+    优先级：名称精确修正 > API 分类名 > 关键词兜底。
+    名称修正放在最前，是因为「小食甜品/其他」这种混合分类靠名字区分更准。
+    """
+    for kw, cat in _NAME_OVERRIDES:
+        if kw in name:
+            return cat
+    if category_name:
+        cleaned = category_name.replace("\n", "")
+        for kw, cat in _CATEGORY_NAME_MAP:
+            if kw in cleaned:
+                return cat
+    return guess_category(name)
 
 
 def is_spicy(name: str) -> bool:

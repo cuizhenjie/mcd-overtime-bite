@@ -24,17 +24,18 @@
 
 ## 一、Tool 使用清单
 
-OvertimeBite 实际调用 11 个 Tool，覆盖 5 个业务场景。
+OvertimeBite 实际调用 11 个 Tool，覆盖 5 个业务场景。参数名均取自服务端
+`list_tools()` 返回的 inputSchema（实测值，详见第六节）。
 
 | # | Tool 名称 | 在本项目中的用途 | 对应模块 |
 |---|-----------|------------------|---------|
 | 1 | `now-time-info` | 获取权威当前时间，避免 LLM 猜测时区/日期导致的触发误判 | `pipeline._now_from_mcp` |
 | 2 | `delivery-query-addresses` | 读取用户已保存的配送地址，作为门店检索的地理锚点 | `pipeline._pick_store` |
 | 3 | `query-nearby-stores` | 查询地址附近麦当劳门店，返回距离、步行时间、配送费、ETA | `pipeline._pick_store` |
-| 4 | `order-list` | 拉取历史订单，从中学习品类偏好与口味标签 | `profile.learn_from_orders` |
+| 4 | `order-list` | 拉取历史订单（该工具不接受参数），从中学习品类偏好与口味标签 | `profile.learn_from_orders` |
 | 5 | `auto-bind-coupons` | 一键领取当日全部可领券——收益最高、风险最低的省钱动作 | `pipeline`（寻优前置） |
 | 6 | `query-store-coupons` | 查询当前门店可用券，作为叠券计算输入 | `pipeline` |
-| 7 | `query-meals` | 拉取门店实时在售菜单与价格，作为组合寻优的搜索空间 | `pipeline` |
+| 7 | `query-meals` + `calculate-price` | 菜单只有分类与商品 code，**名称与价格要从 `calculate-price` 取**，两次调用拼出完整菜单 | `mcp_client.menu_with_prices` |
 | 8 | `calculate-price` | **权威金额复核**：小计、优惠、应付总额 | `pipeline._apply_verified_price` |
 | 9 | `create-order` | 创建订单并返回支付链接 | `pipeline`（仅 `dry_run=False`） |
 | 10 | `cancel-order` | 供误触发后的撤销兜底（接口已封装于 `mcp_client`） | 预留 |
@@ -55,28 +56,28 @@ OvertimeBite 实际调用 11 个 Tool，覆盖 5 个业务场景。
         ▼  触发判定（时间窗口 / 加班证据 / 幂等 / 每日上限）
         │  ┈┈ 不通过 → 结束，不产生任何写操作
         │
- ② delivery-query-addresses     ──▶  配送地址
- ③ query-nearby-stores          ──▶  附近门店（距离 / 步行时间 / 配送费 / ETA）
+ ② query-nearby-stores          ──▶  附近门店（city + keyword + beType）
         │
         ▼  选定最近可配送门店
         │
- ④ order-list                   ──▶  历史订单
+ ④ order-list                   ──▶  历史订单（orderProductList / comboItemList）
         │                           └─▶ 学习口味画像（贝叶斯收缩）
         ▼
  ⑤ auto-bind-coupons            ──▶  一键领券（先领后算，否则用不上当天券）
  ⑥ query-store-coupons          ──▶  该店可用券
- ⑦ query-meals                  ──▶  实时菜单与价格
+ ⑦ query-meals                  ──▶  分类结构 + 商品 code（无名称无价格）
+ ⑧ calculate-price × N          ──▶  商品名称与单价（按 30 件分批）
         │
         ▼  渠道决策（先渠道，后商品）
         │  ┈┈ 配送费 ≥ 预算 20% 且门店在步行范围内 → 改走到店自取
         ▼
     组合寻优（预算硬约束 + 忌口/辣度过滤 + 多目标评分）
         │
- ⑧ calculate-price              ──▶  权威金额复核
+ ⑨ calculate-price              ──▶  最终方案金额复核
         │
         ▼  触发判定为「需确认」 →  停止，返回方案供人工确认
         ▼  触发判定为「可下单」且 dry_run=False
- ⑨ create-order                 ──▶  订单 + 支付链接
+ ⑩ create-order                 ──▶  订单 + 支付链接
         │
        （误触发时）
  ⑩ cancel-order / query-order   ──▶  撤销 / 追踪
@@ -152,23 +153,105 @@ provider = McdDataProvider(McdMcpClient.from_env())
 
 ---
 
-## 六、接入层的三个工程约束
+## 六、接入层的实测约束
 
-这些是真实调试过程中踩出来的，不是设计时就想到的。
+以下是拿真实 Token 连上 `mcp.mcd.cn` 后逐条核对的结果，**全部来自服务端 `list_tools()`
+返回的 inputSchema 与实际调用响应**，不是按文档推断的。
 
-### 1. `mcp` 必须锁在 1.x
+### 1. 工具参数名极易猜错
+
+| 工具 | 实际参数 | 常见误解 |
+|---|---|---|
+| `query-nearby-stores` | `city` + `keyword` + **`beType`（必传）** + `searchType` | 没有 `address` 参数 |
+| `query-meals` | `storeCode` + `beCode` + `beType` + `orderType` | 不是 `storeId` |
+| `query-store-coupons` | 同上 | 不是 `storeId` |
+| `order-list` | **不接受任何参数** | 传 `limit` 无意义 |
+| `calculate-price` | `storeCode` + `beType` + `orderType` + `items[].productCode` | 不是 `items[].id` |
+
+`city` 与 `keyword` 至少要有一个，否则返回 `code=600058 城市名或者关键词不能为空`。
+
+`beCode` 只在麦乐送/得来速场景存在；官方明确说明**到店自提场景传了会报错**。
+
+### 2. 菜单没有价格——价格只存在于 `calculate-price`
+
+这是最反直觉的一点，也是整个寻优器能否成立的前提：
+
+- `query-meals` 只返回 **分类结构 + 商品 `code` + `tags`**，既无名称也无价格
+- `query-meal-detail` 能拿到 `name`、套餐轮次、图片，**仍然没有价格**
+- 真正的价格在 `calculate-price` 的 `productList` 里（`subtotal` 单位是**分**，
+  `subtotal=2990` 即 ¥29.90），而且它**同时返回 `productName`**
+
+于是菜单可以被 2 次调用完整还原：
+
+```
+query-meals      -> 分类结构 + 全部商品 code
+calculate-price  -> 每个 code 的名称与单价
+```
+
+`McdDataProvider.menu_with_prices()` 封装了这个过程，117 项菜单实测约 2.8 秒。
+
+**两个实测约束：**
+
+- 单次商品数过多（117 件）会报「商品超过数量限制」，故按 **30 件分批**
+- **请求条数多于返回条数**（请求 30 只回 27）——部分商品被服务端静默剔除。
+  因此只采信返回结果，缺席即视为"当前不可点"，不进搜索空间
+
+### 3. 返回形态有三种，且混用
+
+| 形态 | 例子 |
+|---|---|
+| 纯 JSON | `delivery-query-addresses` -> `[]` |
+| markdown + `## Original Response` + JSON | `now-time-info` |
+| 散文 + JSON + 尾部散文 | `query-nearby-stores` |
+
+第三种没有固定锚点，只能扫描定位。注意**不能"第一个能解析的位置"就算数**——
+描述文字里到处都是 `data[].storeName`，`raw_decode` 会在那个 `[` 处成功解出
+**空数组**，把后面真正的响应整个跳过。正确策略是按优先级扫三遍：
+带 `success` 的信封对象 > 任意对象 > 任意值。
+
+### 4. 业务错误的信号是 `success`，不是 `isError`
+
+业务失败时 HTTP 仍是 200、`CallToolResult.isError` 仍可能是 `false`：
+
+```json
+{"success": false, "code": 600058, "message": "城市名或者关键词不能为空"}
+```
+
+不判断的话，这段错误内容会被当成正常业务数据继续向下流动。
+
+### 5. 菜单里混着非正餐条目
+
+真实菜单中确实存在「韩式烟熏芝士风味酱 ¥3.00」与「按摩捶痒痒挠 ¥14.90」，
+它们在菜单 API 里与正餐**平级**。若不剔除，寻优器完全可能把"一包酱"当成一顿饭。
+
+`_to_menu()` 统一挡掉；品类判定则优先用 API 返回的权威分类名（`categoryName`），
+而不是只靠商品名猜测。
+
+### 6. 所需配置
+
+| 配置项 | 说明 |
+|---|---|
+| `city` | 城市名，必填，留空则门店查询失败 |
+| `store_keyword` | 商圈/路口关键词，如「西马场路」 |
+| `MCD_MCP_TOKEN` | 环境变量 |
+
+---
+
+## 七、其他工程约束
+
+### `mcp` 必须锁在 1.x
 
 mcp 2.x 是破坏性升级，对本项目有致命影响：
 
 | 变化 | 影响 |
 |---|---|
-| `FastMCP` → `MCPServer` | 服务端侧改名 |
-| `streamablehttp_client` → `streamable_http_client` | 客户端 API 改名 |
+| `FastMCP` -> `MCPServer` | 服务端侧改名 |
+| `streamablehttp_client` -> `streamable_http_client` | 客户端 API 改名 |
 | **`StreamableHTTPTransport` 不再接受 `headers`** | **麦当劳强制要求 `Authorization`，缺头直接 401** |
 
 所以 `requirements.txt` 锁定 `mcp>=1.0,<2.0`，与麦当劳官方文档保持一致。
 
-### 2. session 生命周期必须显式持有
+### session 生命周期必须显式持有
 
 `ClientSession` 由 anyio task group 支撑，其 `__aexit__` 会 cancel 整个 task group。
 最初的连接实现用完 `async with` 就返回，**导致 session 在第一次调用前就已失效**——
@@ -176,9 +259,8 @@ mcp 2.x 是破坏性升级，对本项目有致命影响：
 
 现在的做法是让连接协程用 `AsyncExitStack` **常驻持有**连接直到 `close()`，
 每次调用通过 `run_coroutine_threadsafe` 派发回同一事件循环。
-`tests/test_mcp_integration.py` 会连续调用多次守住这条线。
 
-### 3. 代理环境下的连接方式
+### 代理环境下的连接方式
 
 开发机普遍设置 `ALL_PROXY=socks5://...`，httpx 会尝试走 SOCKS 代理；
 未安装 `socksio` 时连接直接失败。两种解法：
@@ -187,7 +269,7 @@ mcp 2.x 是破坏性升级，对本项目有致命影响：
 pip install "httpx[socks]"     # 希望 MCP 走代理
 ```
 
-或在代码中传入 `trust_env=False` 的工厂直连（本地测试即如此）：
+或在代码中传入 `trust_env=False` 的工厂直连（国内服务走代理没必要）：
 
 ```python
 import httpx
@@ -198,15 +280,9 @@ client = McdMcpClient.from_env()
 client.httpx_client_factory = factory
 ```
 
-### 4. 工具级错误必须显式拦截
-
-MCP 工具执行失败时，协议层仍返回 HTTP 200，只是把 `CallToolResult.isError`
-置为 `true`。若不判断，错误文本会被当成正常业务数据继续向下流动——
-非常隐蔽。`_unwrap()` 对此做了显式拦截并抛出 `McpError`。
-
 ---
 
-## 七、测试
+## 八、测试
 
 | 测试文件 | 数量 | 依赖 |
 |---|---:|---|
@@ -214,7 +290,11 @@ MCP 工具执行失败时，协议层仍返回 HTTP 200，只是把 `CallToolRes
 | `test_optimizer.py` | 10 | 无 |
 | `test_pipeline.py` | 15 | 无 |
 | `test_mcp_integration.py` | 9 | mcp + uvicorn |
+| `test_real_responses.py` | 18 | 无 |
 
 集成测试会**真实启动一个 streamable-http MCP 服务器**，用麦当劳官方的连字符
 工具名注册替身工具，并在服务端侧用 ASGI 中间件实测 `Authorization` 头确实送达，
 而非"调用没报错就算过"。
+
+`test_real_responses.py` 的全部样本均来自真实调用响应（含真实订单字段、真实菜单
+名称与价格），已固化为回归测试。

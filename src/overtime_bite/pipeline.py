@@ -58,38 +58,44 @@ class Decision:
     verbose_trace: list[str] = field(default_factory=list)
 
 
-def _to_menu(raw: list[dict[str, Any]], nutrition_index: dict[str, dict] | None = None) -> list[MenuItem]:
-    """把 MCP ``query-meals`` 返回转成 MenuItem。"""
+def _to_menu(
+    raw: list[dict[str, Any]],
+    nutrition_index: dict[str, dict] | None = None,
+) -> list[MenuItem]:
+    """把 ``McdDataProvider.menu_with_prices`` 的返回转成 MenuItem。
+
+    真实菜单里存在**酱料**（韩式烟熏芝士风味酱 ¥3）与**周边玩具**
+    （按摩捶痒痒挠 ¥14.9）——它们在菜单 API 里和正餐平级，若不剔除，
+    寻优器完全可能把"一包酱"当成一顿饭推给用户。这里统一挡掉。
+    """
     nutrition_index = nutrition_index or {}
     menu: list[MenuItem] = []
     for row in raw:
-        name = row.get("name") or row.get("mealName") or ""
-        if not name:
+        name = str(row.get("name") or "").strip()
+        if not name or profile_mod.is_non_food(name):
             continue
-        price_raw = row.get("price") or row.get("priceCents") or 0
-        try:
-            # 麦当劳 MCP 价格通常为「元」的字符串或数值
-            price_cents = int(round(float(price_raw) * 100)) if float(price_raw) < 1000 else int(float(price_raw))
-        except (TypeError, ValueError):
-            price_cents = 0
+
+        price_cents = row.get("priceCents")
+        if not price_cents:
+            try:
+                price_cents = int(round(float(row.get("price") or 0) * 100))
+            except (TypeError, ValueError):
+                price_cents = 0
         if price_cents <= 0:
             continue
 
-        cat_raw = row.get("category") or profile_mod.guess_category(name).value
-        try:
-            category = Category(cat_raw)
-        except ValueError:
-            category = profile_mod.guess_category(name)
-
+        category = profile_mod.classify_item(name, row.get("categoryName"))
         nutrition = nutrition_index.get(name, {})
+        tags = set(profile_mod.extract_tags(name))
+        tags |= {str(t) for t in (row.get("tags") or [])}
+
         menu.append(
             MenuItem(
-                item_id=str(row.get("id") or row.get("mealCode") or row.get("code") or name),
+                item_id=str(row.get("code") or row.get("id") or name),
                 name=name,
                 category=category,
                 price_cents=price_cents,
-                tags=frozenset(profile_mod.extract_tags(name)),
-                includes=tuple(row.get("includes") or ()),
+                tags=frozenset(tags),
                 calories=nutrition.get("calories"),
                 protein_g=nutrition.get("protein"),
             )
@@ -98,49 +104,80 @@ def _to_menu(raw: list[dict[str, Any]], nutrition_index: dict[str, dict] | None 
 
 
 def _to_coupons(raw: list[dict[str, Any]]) -> list[Coupon]:
+    """把真实门店券转成 Coupon。
+
+    真实结构是**商品型券**::
+
+        {"title": "中薯条买一送一", "couponId": "...", "couponCode": "...",
+         "products": [{"productCode": "9900012387", "productName": "中薯条买一送一"}],
+         "promotionId": "..."}
+
+    没有"满 X 减 Y"的金额字段，因此 ``discount_cents`` 留 0——
+    宁可显示"无可计算优惠"，也不编造一个省 ¥X 的数字出来。
+    """
     coupons: list[Coupon] = []
     for row in raw:
+        products = row.get("products") or []
+        product_codes = tuple(
+            str(p.get("productCode")) for p in products
+            if isinstance(p, dict) and p.get("productCode")
+        )
+
         discount_raw = row.get("discount") or row.get("amount") or 0
+        try:
+            discount = int(round(float(discount_raw) * 100)) if 0 < float(discount_raw) < 1000 else int(discount_raw or 0)
+        except (TypeError, ValueError):
+            discount = 0
+
         threshold_raw = row.get("threshold") or row.get("fullReduction") or 0
         try:
-            discount = int(round(float(discount_raw) * 100)) if float(discount_raw) < 1000 else int(discount_raw)
-            threshold = int(round(float(threshold_raw) * 100)) if float(threshold_raw) < 10000 else int(threshold_raw)
+            threshold = int(round(float(threshold_raw) * 100)) if 0 < float(threshold_raw) < 10000 else int(threshold_raw or 0)
         except (TypeError, ValueError):
-            continue
-        if discount <= 0:
-            continue
+            threshold = 0
+
         coupons.append(
             Coupon(
-                coupon_id=str(row.get("id") or row.get("couponId") or row.get("code") or discount),
-                title=str(row.get("title") or row.get("name") or f"优惠¥{discount / 100:.2f}"),
+                coupon_id=str(row.get("couponId") or row.get("id") or row.get("code") or len(coupons)),
+                title=str(row.get("title") or row.get("name") or "门店优惠"),
                 threshold_cents=threshold,
                 discount_cents=discount,
-                scope=str(row.get("scope") or "all"),
+                scope="product" if product_codes else "all",
+                product_codes=product_codes,
             )
         )
     return coupons
 
 
-def _to_store(raw: dict[str, Any]) -> Store:
-    distance = raw.get("distance") or raw.get("distanceMeters") or 0
+def _to_store(raw: dict[str, Any], be_type: int = 1) -> Store:
+    """把门店查询结果转成 Store。
+
+    真实字段是 ``storeCode``（纯数字）与可选的 ``beCode``：
+    ``beCode`` 只在麦乐送/得来速场景存在，到店自取为 None，
+    且官方明确要求「到店自提场景 beCode 传了会报错」。
+    """
+    distance_raw = raw.get("distance")
     try:
-        distance_m = int(distance)
+        distance_m = int(distance_raw or 0)
     except (TypeError, ValueError):
         distance_m = 0
+
     fee_raw = raw.get("deliveryFee") or raw.get("deliveryFeeCents") or 0
     try:
-        fee = int(round(float(fee_raw) * 100)) if float(fee_raw) < 1000 else int(fee_raw)
+        fee = int(round(float(fee_raw) * 100)) if 0 < float(fee_raw) < 1000 else int(fee_raw or 0)
     except (TypeError, ValueError):
         fee = 0
+
     return Store(
-        store_id=str(raw.get("id") or raw.get("storeId") or raw.get("code") or "store"),
-        name=str(raw.get("name") or raw.get("storeName") or "麦当劳门店"),
+        store_id=str(raw.get("storeCode") or raw.get("id") or raw.get("storeId") or "store"),
+        name=str(raw.get("storeName") or raw.get("name") or "麦当劳门店"),
         distance_meters=distance_m,
         walk_minutes=int(raw.get("walkMinutes") or max(1, round(distance_m / 80))),
-        supports_pickup=bool(raw.get("supportsPickup", True)),
-        supports_delivery=bool(raw.get("supportsDelivery", True)),
+        supports_pickup=bool(raw.get("supportsPickup", be_type in (1, 5))),
+        supports_delivery=bool(raw.get("supportsDelivery", be_type == 2)),
         delivery_fee_cents=fee,
         eta_minutes=int(raw.get("etaMinutes") or raw.get("deliveryTime") or 30),
+        be_type=be_type,
+        be_code=str(raw.get("beCode") or ""),
     )
 
 
@@ -195,10 +232,10 @@ class OvertimeBite:
         trace.append(f"选定门店：{store.name}（{store.distance_meters}m，配送费 ¥{store.delivery_fee_cents / 100:.2f}）")
 
         # ---------- 4. 口味画像 ----------
-        history = self.provider.order_history(limit=20)
+        history = self.provider.order_history()
         learned = profile_mod.learn_from_orders(history, base=self.cfg.profile)
         profile_note = profile_mod.describe_profile(learned, len(history))
-        trace.append("口味画像已更新")
+        trace.append(f"口味画像已更新（基于 {len(history)} 笔真实历史订单）")
 
         # ---------- 5. 领券（收益最高、风险最低的一步）----------
         try:
@@ -207,10 +244,16 @@ class OvertimeBite:
         except Exception:  # noqa: BLE001 - 领券失败不应阻断主流程
             trace.append("一键领券失败，改用已有券继续")
 
-        coupons = _to_coupons(self.provider.store_coupons(store.store_id))
+        coupons = _to_coupons(
+            self.provider.store_coupons(
+                store.store_id, be_code=store.be_code, be_type=store.be_type
+            )
+        )
 
-        # ---------- 6. 菜单 ----------
-        raw_menu = self.provider.meals(store.store_id)
+        # ---------- 6. 菜单（带真实价格）----------
+        raw_menu = self.provider.menu_with_prices(
+            store.store_id, be_code=store.be_code, be_type=store.be_type
+        )
         if not raw_menu:
             return Decision(
                 action=decision.action,
@@ -218,7 +261,10 @@ class OvertimeBite:
                 verbose_trace=trace,
             )
         menu = _to_menu(raw_menu)
-        trace.append(f"菜单载入 {len(menu)} 个在售餐品，可用券 {len(coupons)} 张")
+        trace.append(
+            f"菜单载入 {len(menu)} 个在售餐品（已剔除酱料/周边等非正餐条目），"
+            f"可用券 {len(coupons)} 张"
+        )
 
         # ---------- 7. 渠道决策（先渠道，后商品）----------
         ch = channel_mod.choose(
@@ -253,13 +299,15 @@ class OvertimeBite:
         chosen = candidates[0]
 
         # ---------- 9. 价格以 MCP 为准 ----------
+        # 载荷字段名取自服务端 inputSchema：storeCode / beType / orderType / items[].productCode
         try:
             verified = self.provider.calculate_price(
                 {
-                    "storeId": store.store_id,
-                    "channel": ch.channel.value,
-                    "items": [{"id": i.item_id, "quantity": 1} for i in chosen.items],
-                    "couponIds": [c.coupon_id for c in chosen.coupons_used],
+                    "storeCode": store.store_id,
+                    "beType": store.be_type,
+                    "orderType": 2 if ch.channel is Channel.DELIVERY else 1,
+                    **({"beCode": store.be_code} if store.be_code else {}),
+                    "items": [{"productCode": i.item_id, "quantity": 1} for i in chosen.items],
                 }
             )
             trace.append("已用 calculate-price 向麦当劳侧复核金额")
@@ -359,19 +407,29 @@ class OvertimeBite:
         return datetime.now()
 
     def _pick_store(self, trace: list[str]) -> Store:
-        """按默认地址选最近的可配送门店。"""
-        addresses = self.provider.my_addresses()
-        address_text = None
-        if addresses:
-            first = addresses[0]
-            address_text = " ".join(
-                str(first.get(k, ""))
-                for k in ("province", "city", "district", "detail", "address")
-            ).strip() or None
-        stores = self.provider.nearby_stores(address_text)
+        """按配置的门店关键词选最近的一家。
+
+        真实 ``query-nearby-stores`` 不收地址而是收 ``city`` + ``keyword``，
+        且 ``beType`` 必传，因此这里优先走配置的城市/关键词；
+        两者都没配时返回一家占位门店，让上层给出明确提示而不是静默失败。
+        """
+        city = (getattr(self.cfg, "city", "") or "").strip()
+        keyword = (getattr(self.cfg, "store_keyword", "") or "").strip()
+        if not city:
+            return Store(
+                store_id="", name="未配置门店", distance_meters=0,
+                supports_delivery=False,
+            )
+        try:
+            stores = self.provider.nearby_stores(city=city, keyword=keyword, be_type=1)
+        except Exception as exc:  # noqa: BLE001
+            trace.append(f"门店查询失败：{exc}")
+            stores = []
         if not stores:
-            return Store(store_id="unknown", name="默认门店", distance_meters=1000, walk_minutes=12)
-        return _to_store(min(stores, key=lambda s: int(s.get("distance") or s.get("distanceMeters") or 1e9)))
+            return Store(store_id="", name=f"{city}（未找到门店）", distance_meters=0,
+                         supports_delivery=False)
+        best = min(stores, key=lambda s: int(s.get("distance") or 10**9))
+        return _to_store(best, be_type=1)
 
     @staticmethod
     def _apply_verified_price(candidate: Candidate, verified: Any) -> None:

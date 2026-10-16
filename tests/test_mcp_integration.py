@@ -275,27 +275,47 @@ def test_pipeline_against_real_mcp_server():
     url = f"http://127.0.0.1:{port}/mcp"
 
     class PartialProvider(McdDataProvider):
-        """本地测试服务器只实现了部分工具，其余走安全的空实现。"""
+        """本地测试服务器只实现了部分工具，其余走安全的空实现。
 
-        def nearby_stores(self, address=None):
-            return [{"id": "S00123", "name": "麦当劳（测试店）", "distance": 420,
-                     "walkMinutes": 5, "deliveryFee": 6.0, "etaMinutes": 32}]
+        方法签名必须与真实 McdDataProvider 保持一致，
+        否则测试覆盖的就不是生产代码实际会走的路径。
+        """
 
-        def my_addresses(self):
-            return [{"id": "A1", "city": "北京市", "detail": "望京"}]
+        def nearby_stores(self, *, city: str = "", keyword: str = "", be_type: int = 1,
+                          search_type: int = 2):
+            if not city:
+                raise McpError("城市名或者关键词不能为空")
+            return [{"storeCode": "1950609", "storeName": "麦当劳（测试店）", "distance": 420,
+                     "beCode": None}]
+
+        def menu_with_prices(self, store_code: str, *, be_type: int = 1, order_type: int = 1,
+                             be_code: str = ""):
+            """返回真实结构的带价菜单（价格取自真实麦当劳门店数据）。"""
+            return [
+                {"code": "B02", "name": "巨无霸", "price": 22.0, "priceCents": 2200,
+                 "categoryName": "汉堡", "tags": []},
+                {"code": "S01", "name": "中薯条", "price": 14.5, "priceCents": 1450,
+                 "categoryName": "小食甜品/其他", "tags": []},
+                {"code": "D01", "name": "可乐", "price": 9.5, "priceCents": 950,
+                 "categoryName": "饮品", "tags": []},
+            ]
 
         def auto_bind_coupons(self):
             return {"success": True}
 
-        def store_coupons(self, store_id):
+        def store_coupons(self, store_code: str, *, be_code: str = "", be_type: int = 1,
+                          order_type: int = 1):
             return [{"id": "CP01", "title": "满30减6", "threshold": 30.0, "discount": 6.0}]
 
         def calculate_price(self, payload):
-            return {"subtotal": 29.0, "deliveryFee": 6.0, "discount": 6.0, "payable": 29.0}
+            return {"subtotal": 2900, "deliveryFee": 0, "discount": 0,
+                    "payable": 2900, "totalPrice": 2900,
+                    "productList": [{"productCode": "B02", "productName": "巨无霸",
+                                     "quantity": 1, "subtotal": 2200}]}
 
     with _client(url) as client:
         provider = PartialProvider(client)
-        bot = OvertimeBite(provider, OvertimeConfig(budget_cap_cents=3000))
+        bot = OvertimeBite(provider, OvertimeConfig(budget_cap_cents=3000, city="北京"))
         decision = bot.run(
             now=datetime(2026, 10, 9, 19, 30),
             state=TriggerState(date="2026-10-09"),
