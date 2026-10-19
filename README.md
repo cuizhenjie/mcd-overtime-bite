@@ -14,6 +14,10 @@
 </div>
 
 <p align="center">
+  <a href="https://lq63qr8tasyc1.space.mcode.cn" target="_blank"><b>🌐 在线体验产品页 →</b></a>
+</p>
+
+<p align="center">
   <img src="assets/cover.png" width="880" alt="OvertimeBite 封面">
 </p>
 
@@ -272,6 +276,8 @@ mcd-overtime-bite/
 ### 产品页
 
 `web/` 是一套**可离线运行**的产品页：自定义 GLSL 星云背景、3D 能量环决策链、逐行打字的真实运行日志，全部内容取自真实 MCP 调用输出。
+
+**🌐 在线体验：<https://lq63qr8tasyc1.space.mcode.cn>**
 
 ```bash
 cd web

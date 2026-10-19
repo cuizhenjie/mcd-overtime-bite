@@ -9,6 +9,9 @@
 
 真实账户跑出来最优解 ¥16.90，比预算省 ¥13.10。
 
+3D 产品页（能看真实调用轨迹）：
+https://lq63qr8tasyc1.space.mcode.cn
+
 GitHub 67 测试全绿，MIT：
 https://github.com/cuizhenjie/mcd-overtime-bite
 
@@ -63,6 +66,7 @@ https://github.com/cuizhenjie/mcd-overtime-bite
 OvertimeBite · 麦加班 —— 麦当劳 MCP 参赛作品
 按时间 + 位置 + 你的历史口味 + 30 元预算上限，自动领券、选渠道、凑组合、算价、下单。
 
+3D 产品页：https://lq63qr8tasyc1.space.mcode.cn
 GitHub（MIT，67 测试全绿）：https://github.com/cuizhenjie/mcd-overtime-bite
 ```
 

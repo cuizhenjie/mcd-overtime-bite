@@ -2,6 +2,7 @@
 
 > 项目：[OvertimeBite · 麦加班](https://github.com/cuizhenjie/mcd-overtime-bite)
 > 参赛作品 · 麦当劳程序员创意开发大赛
+> 🌐 产品页在线体验：<https://lq63qr8tasyc1.space.mcode.cn>
 > 视频：[10 秒宣传片](https://github.com/cuizhenjie/mcd-overtime-bite/blob/main/assets/overtimebite-promo.mp4)（MiniMax-H3 生成）
 
 ---
@@ -216,6 +217,8 @@ python examples/run_demo.py    # 离线体验，无需 Token
 
 配色与文案规范：主色 `#22D3EE`、次色 `#8B5CF6`、底色 `#05060A`。
 
+**🌐 在线体验：<https://lq63qr8tasyc1.space.mcode.cn>**
+
 ## 八、参赛
 
 这是我在**麦当劳程序员创意开发大赛**的参赛作品，排行榜按公开 Star 数排。
@@ -223,6 +226,7 @@ python examples/run_demo.py    # 离线体验，无需 Token
 如果你也在加班，也刚好在写 MCP——
 
 **GitHub 源码**：https://github.com/cuizhenjie/mcd-overtime-bite
+**在线体验**：https://lq63qr8tasyc1.space.mcode.cn
 
 一个 Star 就是我继续修 bug 的燃料 🐛
 
