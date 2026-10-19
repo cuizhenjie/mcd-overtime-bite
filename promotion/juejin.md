@@ -195,7 +195,7 @@ MCP 的 `ClientSession` 由 anyio task group 支撑，**一旦它所在的 `asyn
 
 ## 六、工程
 
-- **67 个测试全绿**（`9 + 14 + 15 + 9 + 20`），前三组零依赖、无需 Token
+- **67 个测试全绿**（`9 + 14 + 15 + 9 + 20`），**全部不需要麦当劳 Token**（集成测试起的是本地自建服务器）
 - 集成测试会**真的起一个 MCP 服务器**（streamable-http），走完整 initialize → call，并在服务端侧实测 `Authorization` 头是否送达
 - `test_real_responses.py` 的样本**全部来自实际调用结果**，不是手编的
 - 核心逻辑**零第三方依赖**；`mcp` SDK 只出现在接入层

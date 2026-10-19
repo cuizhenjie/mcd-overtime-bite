@@ -217,9 +217,10 @@ python tests/test_real_responses.py     # 20 passed  真实响应结构回归
 
 **67 passed**。
 
-前三组零依赖、无需 Token；集成测试会**真的起一个 MCP 服务器**
-（streamable-http），走完整 initialize → call 流程，并在服务端侧实测
-`Authorization` 头是否送达；`test_real_responses.py` 的样本全部来自实际调用结果。
+**全部 67 个测试都不需要麦当劳 Token**：集成测试会**真的起一个 MCP 服务器**
+（streamable-http，跑在本地自建端口），走完整 initialize → call 流程，并在服务端侧实测
+`Authorization` 头是否送达；`test_real_responses.py` 的样本全部来自实际调用结果，
+但测试本身是离线的。
 
 <details>
 <summary>为什么要有集成测试：它守住一个已经踩过的坑</summary>

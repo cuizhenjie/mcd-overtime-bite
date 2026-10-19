@@ -4,7 +4,7 @@
 不是按官方文档猜的格式。踩过的坑：
 
 1. ``order-list`` 的商品字段是 ``orderProductList`` / ``productName``，
-   不是文档里常见��� ``items`` / ``name``
+   不是文档里常见的 ``items`` / ``name``
 2. 套餐内部另有 ``comboItemList``，内层字段名又变回 ``name``
 3. 部分工具返回纯 JSON，部分返回 **markdown 字段说明 + "## Original Response" + JSON**
 4. 业务失败时 HTTP 仍是 200、``isError`` 仍可能是 false，

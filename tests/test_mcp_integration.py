@@ -41,7 +41,7 @@ def _direct_factory(headers=None, timeout=None, **kwargs):
     """绕过本机 SOCKS 代理直连。
 
     开发机上普遍设置了 ALL_PROXY=socks5://...，httpx 会尝试走代理；
-    未安装 socksio 时会直接抛错。localhost 根本没��要代理。
+    未安装 socksio 时会直接抛错。localhost 根本不需要代理。
     """
     import httpx
 
