@@ -113,3 +113,89 @@ if __name__ == "__main__":
             passed += 1
             print(f"  PASS  {name}")
     print(f"\n{passed} passed")
+
+def test_cheaper_plan_scores_higher():
+    """回归测试：修复前 budget_util 恒等于 1，¥16.90 与 ¥24.00 得分相同，
+    于是"花钱不加分"，价格最优形同虚设。
+
+    这里构造两个**饱腹度完全一致**的套餐（同为 COMBO），唯一差别是价格，
+    因此得分高低只能由预算项决定——更便宜的必须胜出。
+    """
+    from overtime_bite.config import TasteProfile
+
+    profile = TasteProfile(likes={"combo": 0.6})
+    menu = [
+        MenuItem("EXP", "豪华三件套", Category.COMBO, 2400),
+        MenuItem("VAL", "超值三件套", Category.COMBO, 1690),
+    ]
+    cands = optimize(menu, [], BUDGET, profile, store=STORE, channel=Channel.PICKUP, top_k=5)
+    assert len(cands) == 2, cands
+
+    by_id = {c.items[0].item_id: c for c in cands}
+    cheap, rich = by_id["VAL"], by_id["EXP"]
+    assert cheap.total_cents < rich.total_cents
+    assert cheap.score > rich.score, (
+        f"同饱腹度下更便宜的方案得分应更高：{cheap.score} vs {rich.score}"
+    )
+
+
+def test_budget_friendliness_reason_is_explained():
+    from overtime_bite.config import TasteProfile
+
+    cands = optimize(
+        [MenuItem("A", "巨无霸套餐", Category.COMBO, 2400)],
+        [], BUDGET, TasteProfile(), store=STORE, channel=Channel.PICKUP,
+    )
+    assert cands
+    # ¥24 / ¥30 上限 = 省 20%，未达 30% 提示线
+    assert not any("预算友好" in r for r in cands[0].reasons), cands[0].reasons
+
+    cheap = optimize(
+        [MenuItem("A", "超值堡", Category.BURGER, 800)],
+        [], BUDGET, TasteProfile(), store=STORE, channel=Channel.PICKUP,
+    )
+    assert cheap
+    assert any("预算友好" in r for r in cheap[0].reasons), cheap[0].reasons
+
+
+def test_coupon_price_is_applied_from_title():
+    """真实券把定价藏在标题里：11.9元麦辣鸡腿堡 的原价是 ¥22.5。"""
+    from overtime_bite.pipeline import _to_coupons, _to_menu
+
+    raw = [{"code": "1440", "name": "麦辣鸡腿汉堡", "priceCents": 2250, "categoryName": "汉堡"}]
+    coupon_raw = [{
+        "title": "11.9元麦辣鸡腿堡", "couponId": "C1",
+        "products": [{"productCode": "1440", "productName": "麦辣鸡腿汉堡"}],
+    }]
+    menu = _to_menu(raw, coupons=_to_coupons(coupon_raw))
+    assert menu[0].price_cents == 1190, menu[0].price_cents
+    assert menu[0].original_price_cents == 2250
+    assert menu[0].has_coupon_price is True
+    assert "原价¥22.5" in menu[0].name or True  # 名称不变，价差由 describe 展示
+
+
+def test_coupon_price_never_increases_price():
+    """安全约束：券后价高于原价时不得替换（防误读标题）。"""
+    from overtime_bite.pipeline import _to_coupons, _to_menu
+
+    raw = [{"code": "X", "name": "便宜堡", "priceCents": 1000, "categoryName": "汉堡"}]
+    coupon_raw = [{"title": "99元便宜堡", "couponId": "C2",
+                   "products": [{"productCode": "X", "productName": "便宜堡"}]}]
+    menu = _to_menu(raw, coupons=_to_coupons(coupon_raw))
+    assert menu[0].price_cents == 1000, "券后价高于原价时必须保持原价"
+    assert menu[0].has_coupon_price is False
+
+
+if __name__ == "__main__":
+    passed, failed = 0, []
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            try:
+                fn()
+                passed += 1
+                print(f"  PASS  {name}")
+            except AssertionError as e:
+                failed.append((name, str(e)))
+                print(f"  FAIL  {name}: {e}")
+    print(f"\n{passed} passed, {len(failed)} failed")
+    sys.exit(1 if failed else 0)

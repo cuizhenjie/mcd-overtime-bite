@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -58,9 +59,74 @@ class Decision:
     verbose_trace: list[str] = field(default_factory=list)
 
 
+# 券标题形如「11.9元麦辣鸡腿堡」「9.9元中杯冰美式」，开头的数字是**券后实付价**。
+# 这是麦当劳促销的命名惯例，且能用菜单原价交叉验证：券后价应当低于原价。
+_COUPON_PRICE_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*元")
+
+
+def _coupon_price_cents(coupon: Coupon) -> int | None:
+    """从券标题解析券后实付价（分）；解析不出返回 None。"""
+    match = _COUPON_PRICE_RE.match(coupon.title.strip())
+    if not match:
+        return None
+    return int(round(float(match.group(1)) * 100))
+
+
+def _apply_coupon_prices(
+    menu: list[MenuItem], coupons: list[Coupon]
+) -> tuple[list[MenuItem], int]:
+    """把券后价写进菜单，返回 (新菜单, 命中券的商品数)。
+
+    为什么必须做：门店券把**定价藏在标题里**（``11.9元麦辣鸡腿堡`` 实为原价
+    ¥22.5 的券后价）。若寻优器按原价算，会因为"太贵"而主动放弃这张券——
+    实测中这直接导致最优方案没用券，浪费了 10 块钱。
+
+    安全约束：只在 ``券后价 < 原价`` 时才替换，避免把非促销标题误读成降价。
+    """
+    if not coupons or not menu:
+        return menu, 0
+
+    overrides: dict[str, int] = {}
+    for coupon in coupons:
+        coupon_price = _coupon_price_cents(coupon)
+        if coupon_price is None:
+            continue
+        for code in coupon.product_codes:
+            item = next((m for m in menu if m.item_id == code), None)
+            if item is None:
+                continue
+            if 0 < coupon_price < item.price_cents:
+                overrides[code] = coupon_price
+
+    if not overrides:
+        return menu, 0
+
+    updated: list[MenuItem] = []
+    for item in menu:
+        new_price = overrides.get(item.item_id)
+        if new_price is None:
+            updated.append(item)
+        else:
+            updated.append(
+                MenuItem(
+                    item_id=item.item_id,
+                    name=item.name,
+                    category=item.category,
+                    price_cents=new_price,
+                    tags=item.tags,
+                    original_price_cents=item.price_cents,
+                    includes=item.includes,
+                    calories=item.calories,
+                    protein_g=item.protein_g,
+                )
+            )
+    return updated, len(overrides)
+
+
 def _to_menu(
     raw: list[dict[str, Any]],
     nutrition_index: dict[str, dict] | None = None,
+    coupons: list[Coupon] | None = None,
 ) -> list[MenuItem]:
     """把 ``McdDataProvider.menu_with_prices`` 的返回转成 MenuItem。
 
@@ -100,6 +166,8 @@ def _to_menu(
                 protein_g=nutrition.get("protein"),
             )
         )
+
+    menu, _hit = _apply_coupon_prices(menu, list(coupons or []))
     return menu
 
 
@@ -260,10 +328,11 @@ class OvertimeBite:
                 summary="该门店暂无可售餐品（可能已过供餐时段）",
                 verbose_trace=trace,
             )
-        menu = _to_menu(raw_menu)
+        menu = _to_menu(raw_menu, coupons=coupons)
+        coupon_hits = sum(1 for m in menu if m.has_coupon_price)
         trace.append(
             f"菜单载入 {len(menu)} 个在售餐品（已剔除酱料/周边等非正餐条目），"
-            f"可用券 {len(coupons)} 张"
+            f"可用券 {len(coupons)} 张，其中 {coupon_hits} 个商品命中券后价"
         )
 
         # ---------- 7. 渠道决策（先渠道，后商品）----------

@@ -26,13 +26,19 @@ class Channel(str, Enum):
 
 @dataclass(frozen=True)
 class MenuItem:
-    """一个可售卖的餐品。字段与麦当劳 MCP ``query-meals`` 返回对齐。"""
+    """一个可售卖的餐品。字段与麦当劳 MCP 的返回对齐。
+
+    ``original_price_cents`` 用于展示"原价 → 券后价"，因为门店券的定价就藏在
+    券标题里（见 :func:`overtime_bite.pipeline._to_menu`）。留空表示无原价对比。
+    """
 
     item_id: str
     name: str
     category: Category
     price_cents: int
     tags: frozenset[str] = frozenset()
+    # 命中门店券时的**原价**；``price_cents`` 此时已是券后价
+    original_price_cents: int | None = None
 
     # 套餐包含的商品 id；仅 category == COMBO 时有意义
     includes: tuple[str, ...] = ()
@@ -44,6 +50,10 @@ class MenuItem:
     @property
     def is_combo(self) -> bool:
         return self.category is Category.COMBO
+
+    @property
+    def has_coupon_price(self) -> bool:
+        return self.original_price_cents is not None and self.original_price_cents > self.price_cents
 
     def __post_init__(self) -> None:
         if self.price_cents < 0:
@@ -151,7 +161,15 @@ class Candidate:
         return f"¥{self.total_cents / 100:.2f}"
 
     def describe(self) -> str:
-        names = " + ".join(i.name for i in self.items)
+        parts = []
+        for i in self.items:
+            if i.has_coupon_price:
+                parts.append(
+                    f"{i.name}(原价¥{i.original_price_cents / 100:.1f}→券后¥{i.price_cents / 100:.1f})"
+                )
+            else:
+                parts.append(i.name)
+        names = " + ".join(parts)
         ch = "麦乐送外送" if self.channel is Channel.DELIVERY else "到店取餐"
         fee = f"配送费¥{self.fee_cents / 100:.2f}" if self.fee_cents else "免配送费"
         save = f"，已用券省¥{self.discount_cents / 100:.2f}" if self.discount_cents else ""

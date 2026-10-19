@@ -105,6 +105,7 @@ def _score(
     candidate: Candidate,
     profile: TasteProfile,
     store: Store,
+    budget_cents: int,
 ) -> tuple[float, tuple[str, ...]]:
     """多目标评分，返回 (分数, 解释列表)。
 
@@ -128,15 +129,24 @@ def _score(
     if taste >= 0.6:
         reasons.append(f"口味匹配度高（{taste:.2f}），符合历史点餐习惯")
 
-    # ---- 3. 预算利用 ----
-    budget_util = candidate.total_cents / candidate.subtotal_cents if candidate.subtotal_cents else 0
+    # ---- 3. 预算友好度 ----
+    # 早先这里算的是 total/subtotal 比值——在无配送费的到店场景下恒等于 1，
+    # 于是"花 16.90"和"花 24.00"得分完全相同，等于**省钱不加分**。
+    # 产品定位就是"价格最优"，必须显式奖励"同样的口腹感花更少的钱"。
+    leftover = (
+        max(0, budget_cents - candidate.total_cents) / budget_cents
+        if budget_cents > 0 else 0.0
+    )
     if candidate.discount_cents > 0:
         reasons.append(f"叠加优惠省 ¥{candidate.discount_cents / 100:.2f}")
     else:
-        # 商品型券没有可计算金额，只说明"命中了"，不编造省钱数字
+        # 商品型券本身不折算金额，改为说明"命中了哪张券"，不编造省钱数字
         hit = [c for c in candidate.coupons_used if c.is_product_coupon]
         if hit:
             reasons.append("含可用券商品：" + "、".join(c.title for c in hit[:2]))
+    saved = budget_cents - candidate.total_cents
+    if budget_cents > 0 and saved >= budget_cents * 0.3:
+        reasons.append(f"预算友好：比 ¥{budget_cents / 100:.0f} 上限省 ¥{saved / 100:.2f}")
 
     # ---- 4. 速度 ----
     if candidate.channel is Channel.PICKUP:
@@ -148,7 +158,7 @@ def _score(
     score = (
         WEIGHT_SATIETY * satiety
         + WEIGHT_TASTE * taste
-        + WEIGHT_BUDGET * min(1.0, budget_util)
+        + WEIGHT_BUDGET * leftover
         + WEIGHT_SPEED * speed
     )
     return score, tuple(reasons)
@@ -228,7 +238,9 @@ def optimize(
             if not candidate.within_budget(budget_cents):
                 continue
 
-            candidate.score, candidate.reasons = _score(items, candidate, profile, store)
+            candidate.score, candidate.reasons = _score(
+                items, candidate, profile, store, budget_cents
+            )
             candidates.append(candidate)
 
     # 同（商品集合, 渠道）去重：总价更低者胜；**同价时优先用券者**。
