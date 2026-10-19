@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>OvertimeBite 封面</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1200px; height: 675px; overflow: hidden; background: #05060a; }
+  .wrap {
+    position: relative; width: 1200px; height: 675px;
+    font-family: 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+    color: #dbeafe; overflow: hidden;
+  }
+  /* 星云底 */
+  .neb {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(900px 460px at 22% 78%, rgba(139,92,246,0.30), transparent 62%),
+      radial-gradient(760px 420px at 82% 26%, rgba(34,211,238,0.24), transparent 60%),
+      linear-gradient(180deg, #05060a 0%, #0b0718 55%, #05060a 100%);
+  }
+  /* 透视网格地平线 */
+  .grid {
+    position: absolute; left: -10%; right: -10%; bottom: -6%; height: 52%;
+    background-image:
+      linear-gradient(rgba(34,211,238,0.42) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34,211,238,0.30) 1px, transparent 1px);
+    background-size: 58px 30px;
+    transform: perspective(320px) rotateX(64deg);
+    transform-origin: bottom center;
+    -webkit-mask-image: linear-gradient(to top, #000 4%, transparent 82%);
+    mask-image: linear-gradient(to top, #000 4%, transparent 82%);
+    opacity: 1;
+  }
+  .beam {
+    position: absolute; left: 0; right: 0; bottom: 44%; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(34,211,238,0.85), rgba(139,92,246,0.85), transparent);
+    filter: blur(1px);
+  }
+  .stars {
+    position: absolute; inset: 0; opacity: 0.55;
+    background-image:
+      radial-gradient(1.4px 1.4px at 12% 18%, #fff, transparent),
+      radial-gradient(1.2px 1.2px at 28% 9%,  #cfe9ff, transparent),
+      radial-gradient(1.6px 1.6px at 46% 22%, #fff, transparent),
+      radial-gradient(1.1px 1.1px at 63% 11%, #bfe6ff, transparent),
+      radial-gradient(1.5px 1.5px at 78% 26%, #fff, transparent),
+      radial-gradient(1.2px 1.2px at 90% 15%, #cfe9ff, transparent),
+      radial-gradient(1.3px 1.3px at 36% 36%, #fff, transparent),
+      radial-gradient(1.1px 1.1px at 70% 34%, #bfe6ff, transparent),
+      radial-gradient(1.4px 1.4px at 8%  44%, #fff, transparent);
+  }
+  .scan {
+    position: absolute; inset: 0; opacity: 0.14; pointer-events: none;
+    background: repeating-linear-gradient(180deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 3px);
+  }
+  .vign {
+    position: absolute; inset: 0;
+    background: radial-gradient(120% 90% at 50% 42%, transparent 42%, rgba(5,6,10,0.86) 100%);
+  }
+
+  .content { position: absolute; inset: 0; padding: 62px 76px; display: flex; flex-direction: column; }
+
+  /* 右侧：与宣传片同款的五颗能量球，补齐版面右侧的视觉重心 */
+  .orbs { position: absolute; right: 92px; top: 50%; transform: translateY(-52%); width: 430px; height: 330px; }
+  .orb { position: absolute; border-radius: 50%; }
+  .orb.on {
+    width: 78px; height: 78px; left: 176px; top: 126px;
+    background: radial-gradient(circle at 36% 32%, #e6fbff 0%, #22d3ee 32%, rgba(34,211,238,0.18) 68%, transparent 74%);
+    box-shadow: 0 0 46px rgba(34,211,238,0.85), 0 0 110px rgba(34,211,238,0.42);
+  }
+  .orb.dim {
+    width: 58px; height: 58px;
+    background: radial-gradient(circle at 36% 32%, #cfe9ff 0%, #4a7fb5 38%, rgba(74,127,181,0.14) 70%, transparent 76%);
+    box-shadow: 0 0 24px rgba(74,127,181,0.55);
+  }
+  .ring {
+    position: absolute; left: 12px; top: 42px; width: 406px; height: 246px;
+    border: 1.5px solid rgba(139,92,246,0.42); border-radius: 50%;
+    transform: rotate(-7deg);
+  }
+  .halo {
+    position: absolute; left: 120px; top: 70px; width: 190px; height: 190px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(34,211,238,0.20), transparent 66%);
+    filter: blur(14px);
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 10px; align-self: flex-start;
+    padding: 7px 16px; border-radius: 999px;
+    border: 1px solid rgba(34,211,238,0.34);
+    background: rgba(8,14,28,0.62);
+    font-size: 15px; color: #8fb6d8; letter-spacing: 0.04em;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 10px #22d3ee; }
+
+  .title {
+    margin-top: 30px;
+    font-size: 92px; font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+    background: linear-gradient(120deg, #e6f6ff 0%, #22d3ee 44%, #8b5cf6 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .title span { font-weight: 300; }
+  .sub {
+    margin-top: 20px; font-size: 25px; color: #22d3ee;
+    letter-spacing: 0.20em; font-weight: 500;
+  }
+  .hook {
+    margin-top: 22px; font-size: 24px; line-height: 1.66; color: #a8bcdc; max-width: 580px;
+  }
+  .hook b { color: #fff; font-weight: 700; }
+
+  .stats { margin-top: auto; display: flex; gap: 46px; }
+  .stat .v {
+    font-size: 40px; font-weight: 800; line-height: 1;
+    background: linear-gradient(120deg, #22d3ee, #8b5cf6);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .stat .k { margin-top: 9px; font-size: 15px; color: #7c8db5; }
+
+  .foot {
+    position: absolute; right: 76px; bottom: 58px; text-align: right;
+    font-size: 15px; color: #7c8db5; line-height: 1.7;
+  }
+  .foot b { color: #dbeafe; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="neb"></div>
+    <div class="stars"></div>
+    <div class="grid"></div>
+    <div class="beam"></div>
+    <div class="scan"></div>
+    <div class="vign"></div>
+
+    <div class="orbs">
+      <div class="ring"></div>
+      <div class="halo"></div>
+      <div class="orb dim" style="left:24px;  top:104px;"></div>
+      <div class="orb dim" style="left:112px; top:36px;"></div>
+      <div class="orb on"  style=""></div>
+      <div class="orb dim" style="left:286px; top:44px;"></div>
+      <div class="orb dim" style="left:330px; top:172px;"></div>
+    </div>
+
+    <div class="content">
+      <div class="badge"><span class="dot"></span>麦当劳程序员创意开发大赛 · 参赛作品</div>
+
+      <div class="title">Overtime<span>Bite</span></div>
+      <div class="sub">麦加班 · 加班晚餐自动订餐助手</div>
+
+      <div class="hook">
+        你还在改第 8 版方案，胃已经在抗议了。<br />
+        不用起身、不用打开外卖 App、不用纠结点什么——<br />
+        <b>饭会在合适的时候自己安排好</b>。
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="v">67</div><div class="k">单元测试 · 全离线可跑</div></div>
+        <div class="stat"><div class="v">¥30</div><div class="k">预算硬上限 · 永不超支</div></div>
+        <div class="stat"><div class="v">0</div><div class="k">核心逻辑运行时依赖</div></div>
+        <div class="stat"><div class="v">13</div><div class="k">真实 MCP Tool 接入</div></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <b>github.com/cuizhenjie/mcd-overtime-bite</b><br />
+      基于麦当劳 MCP 能力平台开发
+    </div>
+  </div>
+</body>
+</html>

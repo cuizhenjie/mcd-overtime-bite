@@ -13,6 +13,19 @@
 
 </div>
 
+<p align="center">
+  <img src="assets/cover.png" width="880" alt="OvertimeBite 封面">
+</p>
+
+<p align="center">
+  <a href="assets/overtimebite-promo.mp4"><img src="assets/frames/frame-7.jpg" width="380" alt="宣传片"></a>
+  <img src="assets/page-pipeline.png" width="380" alt="决策链">
+</p>
+
+<p align="center">
+  <b>▶ 10 秒宣传片</b>（MiniMax-H3 生成）· <b>▲ 右侧为产品页实拍</b>
+</p>
+
 ---
 
 ## 一句话
@@ -196,13 +209,13 @@ print(decision.summary)
 
 ```bash
 python tests/test_trigger.py            # 9 passed   触发闸门与自动化边界
-python tests/test_optimizer.py          # 10 passed  预算硬约束与寻优
+python tests/test_optimizer.py          # 14 passed  预算硬约束与寻优
 python tests/test_pipeline.py           # 15 passed  端到端与下单边界
 python tests/test_mcp_integration.py    # 9 passed   真实 MCP 协议集成测试
-python tests/test_real_responses.py     # 18 passed  真实响应结构回归
+python tests/test_real_responses.py     # 20 passed  真实响应结构回归
 ```
 
-**61 passed**。
+**67 passed**。
 
 前三组零依赖、无需 Token；集成测试会**真的起一个 MCP 服务器**
 （streamable-http），走完整 initialize → call 流程，并在服务端侧实测
@@ -246,8 +259,27 @@ mcd-overtime-bite/
 │   ├── mcp_client.py           麦当劳 MCP 接入层
 │   └── mock.py                 离线替身
 ├── examples/run_demo.py        端到端演示
-└── tests/                      34 个单元测试
+├── tests/                      67 个测试
+├── web/                        产品页（Vite + React + TS + three.js）
+│   ├── src/shaders/            自定义 GLSL：星云背景 / 菲涅尔能量球
+│   ├── src/components/         决策链、终端、指标等组件
+│   └── public/cover.html       宣传封面（1200×675）
+├── assets/                     封面 / 宣传片 / 关键帧 / 产品页截图
+└── promotion/                  推广帖文案（掘金 / V2EX / X）
 ```
+
+### 产品页
+
+`web/` 是一套**可离线运行**的产品页：自定义 GLSL 星云背景、3D 能量环决策链、逐行打字的真实运行日志，全部内容取自真实 MCP 调用输出。
+
+```bash
+cd web
+npm install
+npm run dev        # 本地开发
+npm run build      # 产出 dist/，纯静态，可任意托管
+```
+
+配色、文案、视觉规范见 [`web/public/spec.html`](web/public/spec.html)（[截图](assets/spec-sheet.png)）。
 
 ### 为什么把 MCP 接入层单独隔开
 
@@ -269,6 +301,19 @@ mcd-overtime-bite/
 
 **为什么默认 `dry_run=True`？**
 自动下单是不可逆的外部行为。默认演练、显式关闭，是这类产品应有的默认值。
+
+---
+
+## 推广素材
+
+| 素材 | 位置 |
+|---|---|
+| 宣传片（10s / 1344×768 / MiniMax-H3 生成） | [`assets/overtimebite-promo.mp4`](assets/overtimebite-promo.mp4) |
+| 视频关键帧（4 张） | [`assets/frames/`](assets/frames) |
+| 封面（1200×675） | [`assets/cover.png`](assets/cover.png) |
+| 产品页截图（4 张） | [`assets/page-*.png`](assets) |
+| 配色与文案规范表 | [`assets/spec-sheet.png`](assets/spec-sheet.png) |
+| 推广帖文案（掘金 / V2EX / X） | [`promotion/`](promotion) |
 
 ---
 
