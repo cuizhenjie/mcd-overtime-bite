@@ -209,8 +209,10 @@ python examples/run_demo.py    # 离线体验，无需 Token
 配套做了一个产品页：自定义 GLSL 星云背景、3D 能量环决策链、逐行打字的真实运行日志——**屏幕上每一个数字都来自真实 MCP 调用输出**，没有一处是编的。
 
 <p align="center">
-  <img src="https://github.com/cuizhenjie/mcd-overtime-bite/blob/main/assets/page-pipeline.png" width="760" alt="决策链">
+  <img src="assets/page-pipeline.png" width="760" alt="决策链">
 </p>
+
+> 配图请从仓库 `assets/` 目录上传到掘金编辑器（相对路径仅供本地预览）。
 
 配色与文案规范：主色 `#22D3EE`、次色 `#8B5CF6`、底色 `#05060A`。
 

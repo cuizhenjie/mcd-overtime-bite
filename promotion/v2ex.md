@@ -89,7 +89,9 @@ MCP 的 `ClientSession` 由 anyio task group 支撑，`async with` 一退出 `__
 
 ## 产品页
 
-![](/assets/page-pipeline.png)
+![决策链](assets/page-pipeline.png)
+
+> 配图需先上传到图床或 V2EX 图床，再把上面的路径替换成直链。
 
 （链接在 GitHub 仓库 assets/ 里，配色规范 `#22D3EE` / `#8B5CF6` / `#05060A`）
 
