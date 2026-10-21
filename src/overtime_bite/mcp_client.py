@@ -510,7 +510,7 @@ class McdDataProvider:
         return _as_list(data, ("coupons", "list", "data"))
 
     def bind_all_coupons(self) -> dict[str, Any]:
-        """一键领取所有可领券——这是省钱动作里收益最高、风险最低的一步。
+        """领取当日全部可领券——这是省钱动作里收益最高、风险最低的一步。
 
         注意：这是**写操作**，会真实把券领进用户账户，调用前应取得用户确认。
         """

@@ -59,7 +59,7 @@ def evaluate(
         state: 幂等状态
         cfg: 运行配置
         overtime_evidence: 加班证据。None 表示"无证据可用"，
-            此时**不会**自动下单，只会降级为确认——宁可不点，也不误点。
+            此时**不会**自动下单，只会转人工确认。
     """
     hour = now.hour
     window = _window_of(hour)

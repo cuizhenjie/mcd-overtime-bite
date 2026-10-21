@@ -33,7 +33,7 @@ OvertimeBite 实际调用 11 个 Tool，覆盖 5 个业务场景。参数名均�
 | 2 | `delivery-query-addresses` | 读取用户已保存的配送地址，作为门店检索的地理锚点 | `pipeline._pick_store` |
 | 3 | `query-nearby-stores` | 查询地址附近麦当劳门店，返回距离、步行时间、配送费、ETA | `pipeline._pick_store` |
 | 4 | `order-list` | 拉取历史订单（该工具不接受参数），从中学习品类偏好与口味标签 | `profile.learn_from_orders` |
-| 5 | `auto-bind-coupons` | 一键领取当日全部可领券——收益最高、风险最低的省钱动作 | `pipeline`（寻优前置） |
+| 5 | `auto-bind-coupons` | 领取当日全部可领券——收益最高、风险最低的一步 | `pipeline`（寻优前置） |
 | 6 | `query-store-coupons` | 查询当前门店可用券，作为叠券计算输入 | `pipeline` |
 | 7 | `query-meals` + `calculate-price` | 菜单只有分类与商品 code，**名称与价格要从 `calculate-price` 取**，两次调用拼出完整菜单 | `mcp_client.menu_with_prices` |
 | 8 | `calculate-price` | **权威金额复核**：小计、优惠、应付总额 | `pipeline._apply_verified_price` |
@@ -63,7 +63,7 @@ OvertimeBite 实际调用 11 个 Tool，覆盖 5 个业务场景。参数名均�
  ④ order-list                   ──▶  历史订单（orderProductList / comboItemList）
         │                           └─▶ 学习口味画像（贝叶斯收缩）
         ▼
- ⑤ auto-bind-coupons            ──▶  一键领券（先领后算，否则用不上当天券）
+ ⑤ auto-bind-coupons            ──▶  领取当日可领券（先领后算，否则用不上当天的券）
  ⑥ query-store-coupons          ──▶  该店可用券
  ⑦ query-meals                  ──▶  分类结构 + 商品 code（无名称无价格）
  ⑧ calculate-price × N          ──▶  商品名称与单价（按 30 件分批）

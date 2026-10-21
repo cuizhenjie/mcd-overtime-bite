@@ -308,9 +308,9 @@ class OvertimeBite:
         # ---------- 5. 领券（收益最高、风险最低的一步）----------
         try:
             self.provider.bind_all_coupons()
-            trace.append("已一键领取当日可领优惠券")
+            trace.append("已领取当日全部可领优惠券")
         except Exception:  # noqa: BLE001 - 领券失败不应阻断主流程
-            trace.append("一键领券失败，改用已有券继续")
+            trace.append("领券失败，改用已有券继续")
 
         coupons = _to_coupons(
             self.provider.store_coupons(

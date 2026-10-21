@@ -85,12 +85,10 @@
     filter: blur(14px);
   }
 
+  /* eyebrow 不做胶囊：与产品页同一套规则，去掉边框/底色/圆角 */
   .badge {
-    display: inline-flex; align-items: center; gap: 10px; align-self: flex-start;
-    padding: 7px 16px; border-radius: 999px;
-    border: 1px solid rgba(34,211,238,0.34);
-    background: rgba(8,14,28,0.62);
-    font-size: 15px; color: #8fb6d8; letter-spacing: 0.04em;
+    display: inline-flex; align-items: center; gap: 9px; align-self: flex-start;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.18em; color: #7c8db5;
   }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 10px #22d3ee; }
 
@@ -110,7 +108,7 @@
   }
   .hook b { color: #fff; font-weight: 700; }
 
-  .stats { margin-top: auto; display: flex; gap: 46px; }
+  .stats { margin-top: auto; margin-bottom: 56px; display: flex; gap: 32px; }
   .stat .v {
     font-size: 40px; font-weight: 800; line-height: 1;
     background: linear-gradient(120deg, #22d3ee, #8b5cf6);
@@ -157,10 +155,10 @@
       </div>
 
       <div class="stats">
-        <div class="stat"><div class="v">67</div><div class="k">单元测试 · 全离线可跑</div></div>
-        <div class="stat"><div class="v">¥30</div><div class="k">预算硬上限 · 永不超支</div></div>
-        <div class="stat"><div class="v">0</div><div class="k">核心逻辑运行时依赖</div></div>
-        <div class="stat"><div class="v">13</div><div class="k">真实 MCP Tool 接入</div></div>
+        <div class="stat"><div class="v">67</div><div class="k">单元测试 · 不用 Token 就能跑完</div></div>
+        <div class="stat"><div class="v">13</div><div class="k">真实 MCP Tool · 参数逐个调过</div></div>
+        <div class="stat"><div class="v">¥30</div><div class="k">预算上限 · 超了就不下单</div></div>
+        <div class="stat"><div class="v">0</div><div class="k">第三方依赖 · 只用标准库</div></div>
       </div>
     </div>
 

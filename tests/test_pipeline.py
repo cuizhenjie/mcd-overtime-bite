@@ -112,7 +112,7 @@ def test_end_to_end_produces_order_ready_plan():
 
 
 def test_end_to_end_binds_coupons_first():
-    """一键领券是收益最高、风险最低的一步，必须在寻优前完成。"""
+    """领券是收益最高、风险最低的一步，必须在寻优前完成。"""
     provider = MockProvider(now=datetime(2026, 10, 9, 19, 30))
     OvertimeBite(provider, OvertimeConfig(budget_cap_cents=BUDGET)).run(
         now=datetime(2026, 10, 9, 19, 30),

@@ -91,7 +91,7 @@ def test_every_candidate_has_reasons():
 
 
 def test_tight_budget_returns_empty_not_overspend():
-    """找不到可行解时返回空列表，绝不为凑数而超预算。"""
+    """找不到可行解时返回空列表，不为了凑数而超预算。"""
     cands = optimize(MENU, [], budget_cents=100, profile=TasteProfile(), store=STORE)
     assert cands == []
 
