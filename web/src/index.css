@@ -31,8 +31,21 @@ body {
 
 .content, .hero { position: relative; z-index: 1; }
 
+/* 内容区压暗：3D 背景里的亮网格线会从文字背后穿过，实测能把正文对比度
+   压到 3.95:1。压一层薄暗底既保住首屏的全强度背景，也让内容区层次沉下来。 */
+.content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(5, 6, 10, 0.34) 0%, rgba(5, 6, 10, 0.5) 40%, rgba(5, 6, 10, 0.58) 100%);
+}
+
 /* ---------------- Hero ---------------- */
 
+/* Hero 是全站唯一显式居中的区域：首屏需要一个对称的视觉重心。
+   以下所有内容区一律左对齐，避免整页滚动时节奏完全不变。 */
 .hero {
   min-height: 100vh;
   display: flex;
@@ -44,19 +57,16 @@ body {
   gap: 4px;
 }
 
+/* eyebrow 不做胶囊：去掉边框、底色、圆角，只留一行带呼吸点的文字小标 */
 .hero-badge {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 16px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel);
-  backdrop-filter: blur(10px);
-  font-size: 12.5px;
-  letter-spacing: 0.06em;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
   color: var(--muted);
-  margin-bottom: 28px;
+  margin-bottom: 26px;
 }
 
 .pulse {
@@ -90,9 +100,8 @@ body {
   font-family: var(--mono);
   font-size: clamp(13px, 2.2vw, 16px);
   color: var(--cyan);
-  letter-spacing: 0.22em;
+  letter-spacing: 0.14em;
   margin: 18px 0 0;
-  text-transform: uppercase;
 }
 
 .hero-desc {
@@ -111,7 +120,7 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 13px 30px;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 14.5px;
   font-weight: 600;
   text-decoration: none;
@@ -144,7 +153,7 @@ body {
   border: 1px solid var(--line);
   text-align: left;
 }
-.hero-diff th { color: var(--muted); font-weight: 600; font-size: 12.5px; letter-spacing: 0.05em; }
+.hero-diff th { color: var(--muted); font-weight: 600; font-size: 12.5px; letter-spacing: 0.05em; background: rgba(8, 14, 28, 0.78); }
 .hero-diff th.hl, .hero-diff td.hl {
   color: #fff;
   background: rgba(34, 211, 238, 0.07);
@@ -156,7 +165,8 @@ body {
 
 .section { max-width: 1120px; margin: 0 auto; padding: 96px 24px; }
 
-.section-head { text-align: center; margin-bottom: 54px; }
+/* 区块标题左对齐：滚动时每段的起手位置固定，节奏才不会一成不变 */
+.section-head { text-align: left; margin-bottom: 42px; max-width: 720px; }
 .section-head h2 {
   font-size: clamp(26px, 4.2vw, 38px);
   margin: 0 0 14px;
@@ -167,29 +177,34 @@ body {
 
 /* ---------------- Metrics ---------------- */
 
+/* 编辑式数据条：左对齐 + 顶部一条实打实的亮线做分隔 */
 .metrics-section { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; padding-bottom: 40px; }
 
 .metric {
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 30px 20px;
-  text-align: center;
+  border-top: 2px solid rgba(34, 211, 238, 0.9);
+  border-radius: 16px;
+  padding: 26px 22px;
+  text-align: left;
   background: var(--panel);
   backdrop-filter: blur(12px);
-  transition: border-color 0.25s, transform 0.25s;
+  transition: border-color 0.25s, background 0.25s;
 }
-.metric:hover { border-color: rgba(34,211,238,0.5); transform: translateY(-4px); }
+.metric:hover {
+  border-color: rgba(34, 211, 238, 0.5);
+  border-top-color: var(--cyan);
+  background: rgba(8, 20, 40, 0.7);
+}
 
+/* 渐变文字全站只留 hero-title 一处；数字用实色，避免第二处渐变 */
 .metric-value {
   font-family: var(--mono);
   font-size: 40px;
   font-weight: 700;
-  background: linear-gradient(120deg, var(--cyan), var(--violet));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--cyan);
+  line-height: 1;
 }
-.metric-label { margin-top: 8px; font-size: 14px; font-weight: 600; }
+.metric-label { margin-top: 10px; font-size: 14px; font-weight: 600; }
 .metric-sub { margin-top: 5px; font-size: 12px; color: var(--muted); }
 
 /* ---------------- Pipeline ---------------- */
@@ -210,14 +225,14 @@ body {
   align-items: flex-start;
   padding: 20px 24px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--panel);
   backdrop-filter: blur(12px);
-  transition: border-color 0.25s, transform 0.25s, background 0.25s;
+  transition: border-color 0.25s, background 0.25s;
 }
+/* 次级卡 hover 只改边框与底色，不位移——位移会让每张卡都在"跳" */
 .step:hover {
   border-color: rgba(34, 211, 238, 0.5);
-  transform: translateX(6px);
   background: rgba(8, 20, 40, 0.7);
 }
 
@@ -241,7 +256,7 @@ body {
 
 .terminal {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   background: rgba(3, 7, 16, 0.82);
   backdrop-filter: blur(14px);
@@ -330,7 +345,7 @@ body {
   padding: 22px 20px;
   background: var(--panel);
   backdrop-filter: blur(12px);
-  text-align: center;
+  text-align: left;
 }
 .gate-name { font-size: 15px; font-weight: 650; margin-bottom: 8px; }
 .gate-rule { font-family: var(--mono); font-size: 13px; color: var(--cyan); margin-bottom: 8px; }
@@ -338,16 +353,16 @@ body {
 
 /* ---------------- CTA ---------------- */
 
-.footer-cta { text-align: center; padding-bottom: 120px; }
+.footer-cta { text-align: left; padding-bottom: 120px; }
 .footer-cta h2 { font-size: clamp(24px, 4vw, 36px); margin: 0 0 14px; font-weight: 700; }
-.footer-cta > p { color: var(--muted); margin: 0 0 34px; font-size: 14.5px; }
+.footer-cta > p { color: var(--muted); margin: 0 0 34px; font-size: 14.5px; max-width: 640px; line-height: 1.8; }
 
 .disclaimer {
-  margin: 46px auto 0 !important;
+  margin: 46px 0 0 !important;
   max-width: 620px;
   font-size: 12px !important;
   line-height: 1.9;
-  color: #55637f !important;
+  color: #7b89a8 !important;
 }
 
 /* ---------------- 响应式 ---------------- */
@@ -361,8 +376,9 @@ body {
 
 @media (max-width: 560px) {
   .metrics-section { grid-template-columns: 1fr; }
-  .hero-diff { font-size: 11.5px; }
-  .hero-diff th, .hero-diff td { padding: 8px 9px; }
+  /* 中文正文不低于 12px，11px 在高 DPI 下会发糊 */
+  .hero-diff { font-size: 12px; }
+  .hero-diff th, .hero-diff td { padding: 7px 6px; }
   .terminal-body { font-size: 11px; min-height: 360px; }
   .step { padding: 16px; }
   .step-index { font-size: 19px; min-width: 32px; }

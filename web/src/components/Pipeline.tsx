@@ -33,7 +33,7 @@ export function Pipeline() {
     <section className="section" id="pipeline">
       <div className="section-head">
         <h2>五步决策链</h2>
-        <p>时间自己走到点，饭自己安排好，中间不需要你做任何一个决策。</p>
+        <p>这五步里，只有第一步可能会来问你一句。剩下的它自己跑完。</p>
       </div>
 
       <div className="pipeline-wrap">

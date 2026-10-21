@@ -25,10 +25,8 @@ export function LiveRun() {
   return (
     <section className="section" id="run">
       <div className="section-head">
-        <h2>这是它上一轮的真实输出</h2>
-        <p>
-          连麦当劳 MCP 真服务器跑出来的，不是示意图。每一个数字都能追溯到一次具体调用。
-        </p>
+        <h2>上一轮真实运行的输出</h2>
+        <p>2026-10-19 18:13 跑的那一次，输出长这样。</p>
       </div>
 
       <div className="run-grid">

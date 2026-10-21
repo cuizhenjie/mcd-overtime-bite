@@ -64,8 +64,8 @@ export default function App() {
 
         <section className="section safety" id="safety">
           <div className="section-head">
-            <h2>自动花钱的产品，第一优先级是克制</h2>
-            <p>五道闸门串起来，任一不通过就绝不会自动下单。</p>
+            <h2>自动花钱的产品，先学会不花钱</h2>
+            <p>五道闸门里只要有一道过不去，它就不下单。</p>
           </div>
           <div className="gates">
             {[
@@ -86,9 +86,9 @@ export default function App() {
 
         <section className="section footer-cta">
           <h2>下次加班，别再纠结点什么了</h2>
-          <p>代码零依赖、测试全离线、每一个决策都有理由。</p>
+          <p>核心逻辑只依赖 Python 标准库，67 个测试不用 Token 就能跑完。</p>
           <a className="btn btn-primary btn-lg" href={REPO} target="_blank" rel="noreferrer">
-            看看它怎么做的
+            看源码
           </a>
           <p className="disclaimer">
             本项目为麦当劳程序员创意开发大赛参赛作品，由参赛者独立开发，非麦当劳官方产品。

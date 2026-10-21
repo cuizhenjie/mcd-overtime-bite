@@ -17,7 +17,8 @@
 | `cover.png` | 1200×675 | 掘金/V2EX 首图、X 配图 |
 | `page-pipeline.png` | 1440×900 | 决策链（掘金正文、V2EX 正文） |
 | `page-hero.png` | 1440×900 | 产品页首屏（掘金） |
-| `page-safety.png` | 1440×900 | 五道安全闸（掘金） |
+| `page-run.png` | 1440×900 | 真实运行输出的终端（掘金正文） |
+| `page-safety.png` | 1440×900 | 五道安全闸 + 结尾 CTA（掘金） |
 | `page-mobile.png` | 390×844 | 移动端（掘金可选） |
 | `spec-sheet.png` | 配色文案规范表 | 设计与文案规范展示 |
 | `frames/frame-1.5.jpg` 等 4 张 | 视频关键帧 | 无声环境下的视频封面 |

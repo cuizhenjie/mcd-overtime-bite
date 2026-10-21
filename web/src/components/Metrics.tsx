@@ -1,8 +1,8 @@
 const METRICS = [
-  { value: '67', label: '单元测试', sub: '全部离线可跑' },
-  { value: '11', label: 'MCP Tool', sub: '真实服务核对过参数' },
-  { value: '¥30', label: '预算硬上限', sub: '永不超支' },
-  { value: '0', label: '运行时依赖', sub: '核心逻辑仅标准库' },
+  { value: '67', label: '单元测试', sub: '不用 Token 就能跑完' },
+  { value: '13', label: 'MCP Tool', sub: '每个都在真服务上调过' },
+  { value: '¥30', label: '预算上限', sub: '超了就不下单' },
+  { value: '0', label: '第三方依赖', sub: '核心逻辑只用标准库' },
 ];
 
 export function Metrics() {

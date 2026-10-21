@@ -288,6 +288,27 @@ npm run build      # 产出 dist/，纯静态，可任意托管
 
 配色、文案、视觉规范见 [`web/public/spec.html`](web/public/spec.html)（[截图](assets/spec-sheet.png)）。
 
+### 视觉与可访问性审计
+
+产品页的背景是 WebGL 实时渲染的，**亮网格线会从文字背后穿过**——静态取色算不出真实对比度，必须按实际渲染结果逐屏实测。
+
+`web/scripts/audit-ui.mjs` 零依赖（只用 Node 内置 WebSocket 直连 CDP），对**桌面 1440 / 移动 390** 两个断点逐屏截图，用真实像素算对比度，同时统计同质化信号量（居中元素、渐变文字、胶囊圆角、阴影）。
+
+```bash
+# 1) 起一个带调试端口的 Chrome（headless=new 在 macOS 上仍走真实 Metal GPU）
+/Applications/Google Chrome.app/Contents/MacOS/Google Chrome \
+  --headless=new --remote-debugging-port=9223 --user-data-dir=/tmp/ob-chrome about:blank
+
+# 2) 跑审计
+cd web
+node scripts/audit-ui.mjs http://localhost:4173/ 9223 audit-report.txt
+```
+
+最近一次结果（对比度全部达标，退出码 0）见 [`web/audit-report.txt`](web/audit-report.txt)。
+
+> 这一步不是形式检查：审计过程中实测出 `.disclaimer` 落在 3.95:1，以及表格表头在
+> 网格亮线上只有 3.95:1——都是静态取色看不出来的。
+
 ### 为什么把 MCP 接入层单独隔开
 
 核心决策逻辑（触发 / 寻优 / 渠道 / 画像）应当能在**没有 Token、没有网络**的环境下被完整测试。MCP 的网络与鉴权细节全部收敛在 `mcp_client.py`，因此：
@@ -318,7 +339,7 @@ npm run build      # 产出 dist/，纯静态，可任意托管
 | 宣传片（10s / 1344×768 / MiniMax-H3 生成） | [`assets/overtimebite-promo.mp4`](assets/overtimebite-promo.mp4) |
 | 视频关键帧（4 张） | [`assets/frames/`](assets/frames) |
 | 封面（1200×675） | [`assets/cover.png`](assets/cover.png) |
-| 产品页截图（4 张） | [`assets/page-*.png`](assets) |
+| 产品页截图（5 张） | [`assets/page-*.png`](assets) |
 | 配色与文案规范表 | [`assets/spec-sheet.png`](assets/spec-sheet.png) |
 | 推广帖文案（掘金 / V2EX / X） | [`promotion/`](promotion) |
 
