@@ -2,7 +2,7 @@
 
 > 参赛作品 · 麦当劳程序员创意开发大赛
 > https://github.com/cuizhenjie/mcd-overtime-bite
-> 在线体验：https://lq63qr8tasyc1.space.mcode.cn
+> 在线体验：https://cuizhenjie.github.io/mcd-overtime-bite/
 
 20:47，第八版方案改到第三轮，饿得手抖。打开外卖 App 翻了两屏又退出去——不是不想点，是不想再做这个决策。
 
@@ -101,7 +101,7 @@ MCP 的 `ClientSession` 由 anyio task group 支撑，`async with` 一退出 `__
 排行榜按公开 Star 数排，现在 0。如果你在写 MCP、或者你也在加班——
 
 **https://github.com/cuizhenjie/mcd-overtime-bite**
-在线体验：https://lq63qr8tasyc1.space.mcode.cn
+在线体验：https://cuizhenjie.github.io/mcd-overtime-bite/
 
 代码、踩坑记录、67 个测试都在里面，MIT 协议，随便看随便抄。
 

@@ -1,6 +1,6 @@
 const METRICS = [
   { value: '67', label: '单元测试', sub: '不用 Token 就能跑完' },
-  { value: '13', label: 'MCP Tool', sub: '每个都在真服务上调过' },
+  { value: '13', label: 'MCP Tool', sub: '参数逐个对着真服务调过' },
   { value: '¥30', label: '预算上限', sub: '超了就不下单' },
   { value: '0', label: '第三方依赖', sub: '核心逻辑只用标准库' },
 ];

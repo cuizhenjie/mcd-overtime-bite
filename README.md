@@ -14,7 +14,7 @@
 </div>
 
 <p align="center">
-  <a href="https://lq63qr8tasyc1.space.mcode.cn" target="_blank"><b>🌐 在线体验产品页 →</b></a>
+  <a href="https://cuizhenjie.github.io/mcd-overtime-bite/" target="_blank"><b>🌐 在线体验产品页 →</b></a>
 </p>
 
 <p align="center">
@@ -277,13 +277,17 @@ mcd-overtime-bite/
 
 `web/` 是一套**可离线运行**的产品页：自定义 GLSL 星云背景、3D 能量环决策链、逐行打字的真实运行日志，全部内容取自真实 MCP 调用输出。
 
-**🌐 在线体验：<https://lq63qr8tasyc1.space.mcode.cn>**
+**🌐 在线体验：<https://cuizhenjie.github.io/mcd-overtime-bite/>**
+
+产品页托管在 `gh-pages` 分支（GitHub Pages）。`vite.config.ts` 里 `base: './'` 用相对路径产出资源引用，所以同一份 `dist/` 挂在域名根目录还是仓库子路径都能跑，不需要重新构建。
 
 ```bash
 cd web
 npm install
 npm run dev        # 本地开发
 npm run build      # 产出 dist/，纯静态，可任意托管
+
+bash scripts/deploy-pages.sh    # 构建并推到 gh-pages
 ```
 
 配色、文案、视觉规范见 [`web/public/spec.html`](web/public/spec.html)（[截图](assets/spec-sheet.png)）。
