@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>OvertimeBite · 配色与文案规格</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 48px 56px;
+    background: #05060a; color: #dbeafe;
+    font-family: 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .sub { color: #7c8db5; font-size: 13px; margin-bottom: 40px; }
+
+  h2 {
+    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: #22d3ee; margin: 44px 0 18px; font-weight: 600;
+    border-bottom: 1px solid rgba(34,211,238,0.16); padding-bottom: 10px;
+  }
+
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .sw { border-radius: 12px; overflow: hidden; border: 1px solid rgba(34,211,238,0.16); }
+  .chip { height: 78px; }
+  .meta { padding: 11px 13px; background: rgba(8,14,28,0.85); }
+  .hex { font-size: 13px; font-weight: 600; }
+  .use { font-size: 11px; color: #7c8db5; margin-top: 4px; }
+
+  .grad-bar { height: 62px; border-radius: 12px; border: 1px solid rgba(34,211,238,0.16); }
+  .grad-note { font-size: 11.5px; color: #7c8db5; margin-top: 10px; line-height: 1.7; }
+
+  .copy-block {
+    border: 1px solid rgba(34,211,238,0.16); border-radius: 12px;
+    background: rgba(8,14,28,0.6); padding: 22px 26px; margin-bottom: 14px;
+  }
+  .copy-block .tag {
+    font-size: 10.5px; letter-spacing: 0.14em; color: #22d3ee;
+    text-transform: uppercase; margin-bottom: 12px;
+  }
+  .copy-big { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.35; }
+  .copy-mid { font-size: 15px; line-height: 1.95; color: #a8bcdc; }
+  .copy-small { font-size: 12.5px; line-height: 1.85; color: #7c8db5; }
+  .b { color: #22d3ee; }
+  .v { color: #8b5cf6; }
+
+  .copytable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .copytable td { padding: 9px 12px; border-bottom: 1px solid rgba(34,211,238,0.1); vertical-align: top; }
+  .copytable td:first-child { color: #7c8db5; width: 150px; }
+</style>
+</head>
+<body>
+
+  <h1>OvertimeBite · 视觉与文案规格</h1>
+  <div class="sub">产品页与宣传视频共用同一套设计语言 —— 深夜控制台 / 全息 HUD</div>
+
+  <h2>主色板</h2>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#22d3ee"></div>
+      <div class="meta"><div class="hex mono">#22D3EE</div><div class="use">主色 · 强调 / 链接 / 高亮</div></div></div>
+    <div class="sw"><div class="chip" style="background:#8b5cf6"></div>
+      <div class="meta"><div class="hex mono">#8B5CF6</div><div class="use">次色 · 渐变末端 / 紫色能量</div></div></div>
+    <div class="sw"><div class="chip" style="background:#05060a"></div>
+      <div class="meta"><div class="hex mono">#05060A</div><div class="use">底色 · 深空背景</div></div></div>
+    <div class="sw"><div class="chip" style="background:#dbeafe"></div>
+      <div class="meta"><div class="hex mono">#DBEAFE</div><div class="use">主文本色</div></div></div>
+  </div>
+
+  <h2>辅助色</h2>
+  <div class="swatches" style="grid-template-columns: repeat(4, 1fr)">
+    <div class="sw"><div class="chip" style="background:#7c8db5"></div>
+      <div class="meta"><div class="hex mono">#7C8DB5</div><div class="use">次要文本 / 说明</div></div></div>
+    <div class="sw"><div class="chip" style="background:#4a7fb5"></div>
+      <div class="meta"><div class="hex mono">#4A7FB5</div><div class="use">3D 节点未激活态</div></div></div>
+    <div class="sw"><div class="chip" style="background:rgba(34,211,238,0.16)"></div>
+      <div class="meta"><div class="hex mono">CYAN 16%</div><div class="use">描边 / 分隔线</div></div></div>
+    <div class="sw"><div class="chip" style="background:rgba(8,14,28,0.55)"></div>
+      <div class="meta"><div class="hex mono">#080E1C 55%</div><div class="use">玻璃面板底</div></div></div>
+  </div>
+
+  <h2>渐变（标题专用）</h2>
+  <div class="grad-bar" style="background:linear-gradient(120deg,#e6f6ff 0%,#22d3ee 46%,#8b5cf6 100%)"></div>
+  <div class="grad-note mono">linear-gradient(120deg, #E6F6FF 0%, #22D3EE 46%, #8B5CF6 100%)</div>
+
+  <h2>文案</h2>
+
+  <div class="copy-block">
+    <div class="tag mono">主标题</div>
+    <div class="copy-big">Overtime<span class="v">Bite</span> <span style="font-weight:300;color:#7c8db5">· 麦加班</span></div>
+    <div class="copy-small mono" style="margin-top:10px">副标题：加班晚餐自动订餐助手</div>
+  </div>
+
+  <div class="copy-block">
+    <div class="tag mono">钩子（首屏主文案）</div>
+    <div class="copy-mid">
+      你还在改第 8 版方案，胃已经在抗议了。<br />
+      不用起身、不用打开外卖 App、不用纠结点什么——<br />
+      <span class="b">饭会在合适的时候自己安排好</span>。
+    </div>
+  </div>
+
+  <div class="copy-block">
+    <div class="tag mono">差异化（与省钱类项目的对比）</div>
+    <table class="copytable">
+      <tr><td>起点</td><td>用户主动提问 &nbsp;→&nbsp; <span class="b">时间自己走到点</span></td></tr>
+      <tr><td>交付</td><td>推荐几个方案让人选 &nbsp;→&nbsp; <span class="b">直接下单</span></td></tr>
+      <tr><td>价格角色</td><td>优化目标 &nbsp;→&nbsp; <span class="b">预算硬约束</span></td></tr>
+      <tr><td>关键洞察</td><td>用券省多少 &nbsp;→&nbsp; <span class="b">配送费占预算多少</span></td></tr>
+      <tr><td>个性化</td><td>问用户想吃什么 &nbsp;→&nbsp; <span class="b">从历史订单自己学</span></td></tr>
+    </table>
+  </div>
+
+  <div class="copy-block">
+    <div class="tag mono">安全主张</div>
+    <div class="copy-mid"><b style="color:#fff">自动花钱的产品，先学会不花钱。</b></div>
+    <div class="copy-small" style="margin-top:8px">五道闸门：时间窗口 · 加班证据 · 幂等 · 每日上限 · 22:00 截止</div>
+  </div>
+
+  <div class="copy-block">
+    <div class="tag mono">CTA</div>
+    <div class="copy-mid">
+      首次：GitHub 源码　｜　次要：看真实运行结果 ↓<br />
+      收尾：<span class="b">下次加班，别再纠结点什么了</span>
+    </div>
+  </div>
+
+  <div class="copy-block" style="border-color:rgba(139,92,246,0.28)">
+    <div class="tag mono" style="color:#8b5cf6">视频脚本（H3 生成用）</div>
+    <div class="copy-small" style="color:#a8bcdc">
+      深空控制台。青紫全息 HUD。镜头穿过透视网格地平线，五颗能量球依次点亮成一个循环，
+      模拟"时间到了自动往下走"的决策链。最后定格于一行霓虹标题与一顿热气腾腾的晚餐。
+    </div>
+  </div>
+
+</body>
+</html>
